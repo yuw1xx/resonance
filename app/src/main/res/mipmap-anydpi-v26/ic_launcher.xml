@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Adaptive icon — mipmap-anydpi-v26/ic_launcher.xml
+    · background  → ?attr/colorPrimary  (dynamic Material You color)
+    · foreground  → white waveform bars
+    · monochrome  → same waveform, system tints it for themed-icon mode
+
+    Themed icon (Android 13+, API 33):
+    The <monochrome> layer lets users enable "Themed icons" in their
+    launcher. The system desaturates the icon and applies a tint derived
+    from the user's wallpaper color seed — exactly the Material You
+    dynamic color behavior you want.
+
+    The background layer must reference a vector that uses ?attr/colorPrimary
+    (not a hardcoded hex) so it also picks up the wallpaper seed color.
+-->
+<adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
+    <background android:drawable="@drawable/ic_launcher_background" />
+    <foreground android:drawable="@drawable/ic_launcher_foreground" />
+    <monochrome android:drawable="@drawable/ic_launcher_foreground" />
+</adaptive-icon>

@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Resonance — adaptive icon background
+    Diagonal violet-to-indigo gradient for non-themed launchers.
+    On Android 13+ the monochrome layer takes over for themed icons,
+    so this gradient is only visible in the legacy / non-themed path.
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <!-- Full-canvas background rectangle with a diagonal gradient -->
+    <path android:pathData="M0,0 L108,0 L108,108 L0,108 Z">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:startX="0"
+                android:startY="0"
+                android:endX="108"
+                android:endY="108"
+                android:type="linear">
+                <!-- Violet 500 → Indigo 700 -->
+                <item android:offset="0"   android:color="#FF8B5CF6"/>
+                <item android:offset="0.5" android:color="#FF6D28D9"/>
+                <item android:offset="1"   android:color="#FF3730A3"/>
+            </gradient>
+        </aapt:attr>
+    </path>
+
+    <!-- Soft radial highlight in the top-left quadrant for depth -->
+    <path android:pathData="M0,0 L108,0 L108,108 L0,108 Z">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:centerX="20"
+                android:centerY="20"
+                android:gradientRadius="70"
+                android:type="radial">
+                <item android:offset="0"   android:color="#30FFFFFF"/>
+                <item android:offset="1"   android:color="#00FFFFFF"/>
+            </gradient>
+        </aapt:attr>
+    </path>
+
+</vector>

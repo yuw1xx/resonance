@@ -1,0 +1,110 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Resonance — adaptive icon foreground  (v2)
+    108×108dp canvas · safe zone: 72dp inner square (18dp inset each side)
+
+    Design:
+      • Thin decorative ring — subtle depth without clutter
+      • 7 symmetric equalizer bars with a natural bell-curve height profile
+      • All paths use #FFFFFFFF so this file doubles as the <monochrome> layer;
+        Android 13+ will tint it from the wallpaper color seed automatically.
+
+    Bar layout (all dimensions in dp):
+      Width = 5dp per bar, gap = 4dp between bars
+      Total width: 7×5 + 6×4 = 59dp  →  starts at x = (108−59)/2 = 24.5
+      Heights (dp): 14 · 26 · 38 · 46 · 38 · 26 · 14   (bell curve, tallest centre)
+      All bars vertically centred at y = 54
+      Corner radius = 2.5dp (full half-circle caps = pill shape)
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <!--
+        Decorative ring — centred at (54, 54), radius 33dp.
+        Uses a hairline stroke so it reads as a refinement, not a border.
+        Two semicircular arcs to form a full circle (SVG can't close a 360° arc
+        as a single arc command).
+    -->
+    <path
+        android:strokeColor="#33FFFFFF"
+        android:strokeWidth="1.5"
+        android:fillColor="#00000000"
+        android:pathData="
+            M 21,54
+            a 33,33 0 1 0 66,0
+            a 33,33 0 1 0 -66,0" />
+
+    <!-- Bar 1 — far left  · x=24.5  h=14  y: 47→61 -->
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="
+            M24.5,47
+            a2.5,2.5 0 0 1 5,0
+            L29.5,61
+            a2.5,2.5 0 0 1 -5,0
+            Z" />
+
+    <!-- Bar 2 — left  · x=33.5  h=26  y: 41→67 -->
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="
+            M33.5,41
+            a2.5,2.5 0 0 1 5,0
+            L38.5,67
+            a2.5,2.5 0 0 1 -5,0
+            Z" />
+
+    <!-- Bar 3 — left-centre  · x=42.5  h=38  y: 35→73 -->
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="
+            M42.5,35
+            a2.5,2.5 0 0 1 5,0
+            L47.5,73
+            a2.5,2.5 0 0 1 -5,0
+            Z" />
+
+    <!-- Bar 4 — centre (tallest)  · x=51.5  h=46  y: 31→77 -->
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="
+            M51.5,31
+            a2.5,2.5 0 0 1 5,0
+            L56.5,77
+            a2.5,2.5 0 0 1 -5,0
+            Z" />
+
+    <!-- Bar 5 — right-centre  · x=60.5  h=38  y: 35→73 -->
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="
+            M60.5,35
+            a2.5,2.5 0 0 1 5,0
+            L65.5,73
+            a2.5,2.5 0 0 1 -5,0
+            Z" />
+
+    <!-- Bar 6 — right  · x=69.5  h=26  y: 41→67 -->
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="
+            M69.5,41
+            a2.5,2.5 0 0 1 5,0
+            L74.5,67
+            a2.5,2.5 0 0 1 -5,0
+            Z" />
+
+    <!-- Bar 7 — far right  · x=78.5  h=14  y: 47→61 -->
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="
+            M78.5,47
+            a2.5,2.5 0 0 1 5,0
+            L83.5,61
+            a2.5,2.5 0 0 1 -5,0
+            Z" />
+
+</vector>
