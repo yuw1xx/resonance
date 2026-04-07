@@ -105,9 +105,6 @@ cd resonance
 ./gradlew assembleDebug
 ```
 
-### Last.fm (optional)
-
-To enable scrobbling, simply login into LastFM though Settings inside the app
 ## Architecture
 
 ```
