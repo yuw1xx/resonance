@@ -1,6 +1,8 @@
 package dev.yuwixx.resonance.presentation.screens
 
 import android.net.Uri
+import android.os.Build
+import androidx.annotation.RequiresApi
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.animation.core.RepeatMode as AnimationRepeatMode
@@ -36,9 +38,12 @@ import dev.yuwixx.resonance.data.model.Song
 import dev.yuwixx.resonance.data.repository.LyricsResult
 import dev.yuwixx.resonance.presentation.components.*
 import dev.yuwixx.resonance.presentation.viewmodel.PlayerViewModel
+import dev.yuwixx.resonance.presentation.viewmodel.ShareViewModel
+import androidx.hilt.navigation.compose.hiltViewModel
 import kotlinx.coroutines.launch
 import java.text.DecimalFormat
 
+@RequiresApi(Build.VERSION_CODES.VANILLA_ICE_CREAM)
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun PlayerScreen(
@@ -58,19 +63,34 @@ fun PlayerScreen(
     val shuffleEnabled by playerViewModel.shuffleEnabled.collectAsState()
     val waveformData by playerViewModel.waveformData.collectAsState()
     val showWaveform by playerViewModel.showWaveform.collectAsState()
+    val blurBackground by playerViewModel.blurBackground.collectAsState()
+    val blurStrength by playerViewModel.blurStrength.collectAsState()
+    val artworkAnimation by playerViewModel.artworkAnimation.collectAsState()
     val sleepTimer by playerViewModel.sleepTimer.collectAsState()
     val lyricsResult by playerViewModel.lyricsResult.collectAsState()
     val activeLyricIndex by playerViewModel.activeLyricIndex.collectAsState()
     val isTrackLoved by playerViewModel.isCurrentSongLiked.collectAsState()
 
+    // NEW PLAYER SETTINGS
+    val playerLayout by playerViewModel.playerLayout.collectAsState()
+    val showLyricsButton by playerViewModel.showLyricsButton.collectAsState()
+    val lyricsFontScale by playerViewModel.lyricsFontScale.collectAsState()
+
     val song = currentSong ?: return
+    val shareViewModel: ShareViewModel = hiltViewModel()
 
     var showLyricsOverlay by remember { mutableStateOf(false) }
     var showSleepTimerDialog by remember { mutableStateOf(false) }
     var showOptionsSheet by remember { mutableStateOf(false) }
+    var showShareSheet by remember { mutableStateOf(false) }
 
     Box(modifier = Modifier.fillMaxSize()) {
-        DynamicBackground(artworkUri = song.artworkUri, isPlaying = isPlaying)
+        DynamicBackground(
+            artworkUri = song.artworkUri,
+            isPlaying = isPlaying,
+            blurBackground = blurBackground,
+            blurStrength = blurStrength
+        )
 
         Column(
             modifier = Modifier
@@ -82,16 +102,25 @@ fun PlayerScreen(
                 onBack = onBack,
                 onQueueClick = onQueueClick,
                 onSleepTimer = { showSleepTimerDialog = true },
+                onShare = { showShareSheet = true },
                 sleepTimer = sleepTimer,
             )
 
             Spacer(modifier = Modifier.weight(1f))
 
+            // Dynamically adjust artwork size based on the chosen layout
+            val artworkPadding = when (playerLayout) {
+                "ARTWORK_BIG" -> 12.dp
+                "LYRICS_FOCUS" -> 64.dp
+                else -> 28.dp // STANDARD
+            }
+
             ArtworkPanel(
                 song = song,
                 isPlaying = isPlaying,
+                artworkAnimation = artworkAnimation,
                 modifier = Modifier
-                    .padding(horizontal = 28.dp)
+                    .padding(horizontal = artworkPadding)
                     .aspectRatio(1f),
             )
 
@@ -118,6 +147,7 @@ fun PlayerScreen(
 
             PlayerFooter(
                 lyricsResult = lyricsResult,
+                showLyricsButton = showLyricsButton, // Pass the setting down
                 onLyricsClick = { showLyricsOverlay = true },
                 onLyricsEdit = onLyricsEdit,
                 onMoreOptions = { showOptionsSheet = true },
@@ -147,13 +177,14 @@ fun PlayerScreen(
                 LyricsOverlay(
                     lyrics = lines,
                     activeLineIndex = activeLyricIndex,
+                    fontScale = lyricsFontScale, // Pass the setting down
                     onSeek = { playerViewModel.seekTo(it) },
                     onClose = { showLyricsOverlay = false },
                 )
             }
         }
 
-        // ── Sleep timer dialog ──────────────────────────────────────────────
+        // Dialogs & Bottom Sheets
         if (showSleepTimerDialog) {
             SleepTimerDialog(
                 currentTimer = sleepTimer,
@@ -169,7 +200,6 @@ fun PlayerScreen(
             )
         }
 
-        // ── Options bottom sheet ────────────────────────────────────────────
         if (showOptionsSheet) {
             PlayerOptionsSheet(
                 song = song,
@@ -183,6 +213,14 @@ fun PlayerScreen(
                 onCreatePlaylist = onCreatePlaylist,
             )
         }
+
+        if (showShareSheet) {
+            ShareSheet(
+                viewModel   = shareViewModel,
+                currentSong = song,
+                onDismiss   = { showShareSheet = false },
+            )
+        }
     }
 }
 
@@ -193,6 +231,7 @@ private fun PlayerHeader(
     onBack: () -> Unit,
     onQueueClick: () -> Unit,
     onSleepTimer: () -> Unit,
+    onShare: () -> Unit,
     sleepTimer: SleepTimer,
     modifier: Modifier = Modifier,
 ) {
@@ -231,6 +270,9 @@ private fun PlayerHeader(
                 else MaterialTheme.colorScheme.onSurface,
             )
         }
+        IconButton(onClick = onShare) {
+            Icon(Icons.Rounded.Share, "Share", modifier = Modifier.size(24.dp))
+        }
         IconButton(onClick = onQueueClick) {
             Icon(Icons.AutoMirrored.Rounded.QueueMusic, "Queue", modifier = Modifier.size(24.dp))
         }
@@ -243,11 +285,12 @@ private fun PlayerHeader(
 private fun ArtworkPanel(
     song: Song,
     isPlaying: Boolean,
+    artworkAnimation: Boolean,
     modifier: Modifier = Modifier,
 ) {
     Box(modifier = modifier, contentAlignment = Alignment.Center) {
         val scale by animateFloatAsState(
-            targetValue = if (isPlaying) 1f else 0.92f,
+            targetValue = if (isPlaying || !artworkAnimation) 1f else 0.92f,
             animationSpec = spring(
                 dampingRatio = Spring.DampingRatioMediumBouncy,
                 stiffness = Spring.StiffnessLow,
@@ -304,7 +347,6 @@ private fun PlaybackControls(
             .padding(horizontal = 28.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        // ── Title row with inline heart ────────────────────────────────────
         Row(
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically,
@@ -362,7 +404,6 @@ private fun PlaybackControls(
 
         Spacer(modifier = Modifier.height(24.dp))
 
-        // ── Seekbar ────────────────────────────────────────────────────────
         if (showWaveform) {
             WaveformSeekbar(
                 waveformData = waveformData,
@@ -405,7 +446,6 @@ private fun PlaybackControls(
 
         Spacer(modifier = Modifier.height(20.dp))
 
-        // ── Transport row ──────────────────────────────────────────────────
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceEvenly,
@@ -480,6 +520,7 @@ private fun PlaybackControls(
 @Composable
 private fun PlayerFooter(
     lyricsResult: LyricsResult,
+    showLyricsButton: Boolean,
     onLyricsClick: () -> Unit,
     onLyricsEdit: () -> Unit,
     onMoreOptions: () -> Unit,
@@ -498,28 +539,32 @@ private fun PlayerFooter(
             )
         }
 
-        val hasLyrics = lyricsResult !is LyricsResult.NotFound
-        Surface(
-            shape = MaterialTheme.shapes.medium,
-            color = if (hasLyrics)
-                MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.7f)
-            else Color.Transparent,
-            modifier = Modifier
-                .size(40.dp)
-                .combinedClickable(
-                    onClick = onLyricsClick,
-                    onLongClick = onLyricsEdit,
-                ),
-        ) {
-            Box(contentAlignment = Alignment.Center) {
-                Icon(
-                    imageVector = Icons.Rounded.MicExternalOn,
-                    contentDescription = "Lyrics — tap to view, long-press to edit",
-                    modifier = Modifier.size(22.dp),
-                    tint = if (hasLyrics) MaterialTheme.colorScheme.onSecondaryContainer
-                    else MaterialTheme.colorScheme.onSurfaceVariant,
-                )
+        if (showLyricsButton) {
+            val hasLyrics = lyricsResult !is LyricsResult.NotFound
+            Surface(
+                shape = MaterialTheme.shapes.medium,
+                color = if (hasLyrics)
+                    MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.7f)
+                else Color.Transparent,
+                modifier = Modifier
+                    .size(40.dp)
+                    .combinedClickable(
+                        onClick = onLyricsClick,
+                        onLongClick = onLyricsEdit,
+                    ),
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    Icon(
+                        imageVector = Icons.Rounded.MicExternalOn,
+                        contentDescription = "Lyrics — tap to view, long-press to edit",
+                        modifier = Modifier.size(22.dp),
+                        tint = if (hasLyrics) MaterialTheme.colorScheme.onSecondaryContainer
+                        else MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
             }
+        } else {
+            Spacer(modifier = Modifier.size(40.dp))
         }
 
         IconButton(onClick = onMoreOptions) {
@@ -901,9 +946,18 @@ private fun SongInfoRow(
 private fun DynamicBackground(
     artworkUri: android.net.Uri?,
     isPlaying: Boolean,
+    blurBackground: Boolean,
+    blurStrength: Float,
 ) {
+    if (!blurBackground) {
+        Box(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.surface))
+        return
+    }
+
+    val targetBlur = (blurStrength * 200).dp
+
     val blurRadius by animateDpAsState(
-        targetValue = if (isPlaying) 80.dp else 60.dp,
+        targetValue = if (isPlaying) targetBlur else (targetBlur * 0.75f),
         animationSpec = tween(800, easing = EaseOutCubic),
         label = "blur_radius",
     )
@@ -935,6 +989,7 @@ private fun DynamicBackground(
 fun LyricsOverlay(
     lyrics: List<LyricLine>,
     activeLineIndex: Int,
+    fontScale: Float,
     onSeek: (Long) -> Unit,
     onClose: () -> Unit,
 ) {
@@ -985,10 +1040,14 @@ fun LyricsOverlay(
                         animationSpec = tween(300),
                         label = "lyric_alpha_$index",
                     )
+
+                    val baseStyle = if (isActive) MaterialTheme.typography.headlineMedium
+                    else MaterialTheme.typography.titleLarge
+                    val scaledStyle = baseStyle.copy(fontSize = baseStyle.fontSize * fontScale)
+
                     Text(
                         text = line.text,
-                        style = if (isActive) MaterialTheme.typography.headlineMedium
-                        else MaterialTheme.typography.titleLarge,
+                        style = scaledStyle,
                         fontWeight = if (isActive) FontWeight.Bold else FontWeight.Medium,
                         color = if (isActive) MaterialTheme.colorScheme.primary
                         else MaterialTheme.colorScheme.onSurface.copy(alpha = lineAlpha),

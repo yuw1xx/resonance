@@ -1,5 +1,6 @@
 package dev.yuwixx.resonance.presentation.viewmodel
 
+import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -76,6 +77,17 @@ class LibraryViewModel @Inject constructor(
             playlistRepository.deletePlaylist(id)
         }
     }
+
+    fun updatePlaylistArtwork(id: Long, artworkUri: Uri?) {
+        viewModelScope.launch { playlistRepository.updatePlaylistArtwork(id, artworkUri) }
+    }
+
+    fun reorderPlaylist(playlistId: Long, songs: List<Song>) {
+        viewModelScope.launch { playlistRepository.reorderPlaylist(playlistId, songs) }
+    }
+
+    suspend fun deduplicatePlaylist(playlistId: Long): Int =
+        playlistRepository.deduplicatePlaylist(playlistId)
 
     fun renamePlaylist(id: Long, newName: String) {
         viewModelScope.launch {

@@ -23,6 +23,10 @@ class ResonancePreferences @Inject constructor(
     companion object Keys {
         val IS_FIRST_RUN = booleanPreferencesKey("is_first_run")
 
+        // Updates
+        val UPDATE_FREQUENCY = stringPreferencesKey("update_frequency")
+        val LAST_UPDATE_CHECK = longPreferencesKey("last_update_check")
+
         // Playback
         val REPEAT_MODE = stringPreferencesKey("repeat_mode")
         val SHUFFLE_ENABLED = booleanPreferencesKey("shuffle_enabled")
@@ -95,6 +99,20 @@ class ResonancePreferences @Inject constructor(
 
     suspend fun setFirstRunCompleted() {
         ds.edit { it[IS_FIRST_RUN] = false }
+    }
+
+    // ─── Updates ─────────────────────────────────────────────────────────────
+
+    val updateFrequency: Flow<String> = ds.data.map { it[UPDATE_FREQUENCY] ?: "DAILY" }
+
+    suspend fun setUpdateFrequency(freq: String) {
+        ds.edit { it[UPDATE_FREQUENCY] = freq }
+    }
+
+    val lastUpdateCheck: Flow<Long> = ds.data.map { it[LAST_UPDATE_CHECK] ?: 0L }
+
+    suspend fun setLastUpdateCheck(time: Long) {
+        ds.edit { it[LAST_UPDATE_CHECK] = time }
     }
 
     // ─── Playback ─────────────────────────────────────────────────────────────

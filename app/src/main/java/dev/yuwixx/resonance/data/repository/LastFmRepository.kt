@@ -198,6 +198,7 @@ class LastFmRepository @Inject constructor(
             if (!isScrobbleReady()) return@launch
             val nowPlayingOn = nowPlaying.firstOrNull() ?: true
             if (!nowPlayingOn) return@launch
+            if (!isNetworkAllowedForScrobble()) return@launch
             try {
                 val (apiKey, sk, sig) = buildSignedParams(
                     "track.updateNowPlaying",
@@ -244,7 +245,7 @@ class LastFmRepository @Inject constructor(
     }
 
     private suspend fun flushPendingScrobbles() {
-        if (pendingScrobbles.isEmpty()) return
+        if (pendingScrobbles.isEmpty() || !isNetworkAllowedForScrobble()) return
         val toFlush = pendingScrobbles.toList()
         pendingScrobbles.clear()
 
@@ -362,4 +363,16 @@ class LastFmRepository @Inject constructor(
     }
 
     val pendingScrobbleCount: Int get() = pendingScrobbles.size
+
+    private fun isOnWifi(): Boolean {
+        val cm = context.getSystemService(Context.CONNECTIVITY_SERVICE) as android.net.ConnectivityManager
+        val net = cm.activeNetwork ?: return false
+        val caps = cm.getNetworkCapabilities(net) ?: return false
+        return caps.hasTransport(android.net.NetworkCapabilities.TRANSPORT_WIFI)
+    }
+
+    private suspend fun isNetworkAllowedForScrobble(): Boolean {
+        val restrictToWifi = onlyWifi.firstOrNull() ?: false
+        return if (restrictToWifi) isOnWifi() else true
+    }
 }

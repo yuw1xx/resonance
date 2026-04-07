@@ -1,9 +1,33 @@
+import com.github.jk1.license.render.JsonReportRenderer
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.ksp)
     alias(libs.plugins.hilt)
+    alias(libs.plugins.license.report)
+}
+
+licenseReport {
+    configurations = arrayOf("debugRuntimeClasspath")
+    renderers = arrayOf(JsonReportRenderer("license-report.json"))
+}
+
+tasks.register("createAssetsFolder") {
+    doLast {
+        file("${project.projectDir}/src/main/assets").mkdirs()
+    }
+}
+
+tasks.register<Copy>("copyLicenseReportToAssets") {
+    dependsOn("generateLicenseReport", "createAssetsFolder")
+    from(layout.buildDirectory.dir("reports/dependency-license").map { it.file("license-report.json") })
+    into(layout.projectDirectory.dir("src/main/assets"))
+}
+
+tasks.preBuild {
+    dependsOn("copyLicenseReportToAssets")
 }
 
 android {
@@ -54,7 +78,6 @@ dependencies {
     implementation("androidx.compose.animation:animation")
     implementation("androidx.compose.foundation:foundation")
     implementation(libs.androidx.activity.compose)
-    implementation(libs.androidx.compose.ui.text.google.fonts)
     debugImplementation(libs.androidx.compose.ui.tooling)
 
     // ── Navigation ───────────────────────────────────────────────────────────
@@ -117,4 +140,10 @@ dependencies {
 
     // ── Guava (used by Media3 internals) ─────────────────────────────────────
     implementation("com.google.guava:guava:33.3.1-android")
+    // ── Share ────────────────────────────────────────────────────────────────
+    implementation("com.google.android.gms:play-services-nearby:19.3.0")
+    implementation("com.google.zxing:core:3.5.3")
+    // ── Workers ──────────────────────────────────────────────────────────────
+    implementation("androidx.work:work-runtime-ktx:2.10.0")
+    ksp("androidx.hilt:hilt-compiler:1.2.0")
 }

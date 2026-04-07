@@ -99,6 +99,7 @@ fun ResonanceTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
     dynamicColorSeed: Color? = null,
     systemDynamicEnabled: Boolean = true,
+    cornerRadius: Int = 28,
     content: @Composable () -> Unit,
 ) {
     val context = LocalContext.current
@@ -163,13 +164,21 @@ fun ResonanceTheme(
         }
     }
 
+    val dynamicShapes = Shapes(
+        extraSmall = RoundedCornerShape((cornerRadius * 0.4f).dp),
+        small = RoundedCornerShape((cornerRadius * 0.6f).dp),
+        medium = RoundedCornerShape(cornerRadius.dp),
+        large = RoundedCornerShape((cornerRadius * 1.2f).dp),
+        extraLarge = RoundedCornerShape((cornerRadius * 1.5f).dp)
+    )
+
     CompositionLocalProvider(
         LocalDynamicColorSeed provides dynamicColorSeed,
     ) {
         MaterialTheme(
             colorScheme = colorScheme,
             typography = ResonanceTypography,
-            shapes = ExpressiveShapes,
+            shapes = dynamicShapes, // <--- USE THE DYNAMIC SHAPES HERE
             content = content,
         )
     }

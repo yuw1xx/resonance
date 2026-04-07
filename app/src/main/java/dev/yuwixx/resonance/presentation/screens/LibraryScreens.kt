@@ -3,8 +3,10 @@ package dev.yuwixx.resonance.presentation.screens
 import android.annotation.SuppressLint
 import android.content.Context
 import android.content.Intent
+import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.annotation.RequiresApi
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.ExperimentalFoundationApi
@@ -43,6 +45,8 @@ import dev.yuwixx.resonance.data.model.RepeatMode as AppRepeatMode
 import dev.yuwixx.resonance.presentation.components.*
 import dev.yuwixx.resonance.presentation.viewmodel.LibraryViewModel
 import dev.yuwixx.resonance.presentation.viewmodel.PlayerViewModel
+import dev.yuwixx.resonance.presentation.viewmodel.ShareViewModel
+import androidx.hilt.navigation.compose.hiltViewModel
 import dev.yuwixx.resonance.data.preferences.ResonancePreferences
 import dev.yuwixx.resonance.presentation.navigation.Screen
 import dev.yuwixx.resonance.ui.theme.PresetColors
@@ -50,6 +54,7 @@ import kotlinx.coroutines.launch
 
 // ─── Songs Screen ─────────────────────────────────────────────────────────────
 
+@RequiresApi(Build.VERSION_CODES.VANILLA_ICE_CREAM)
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
 fun SongsScreen(
@@ -66,6 +71,9 @@ fun SongsScreen(
 
     var selectedSongs by remember { mutableStateOf(setOf<Song>()) }
     val isSelectionMode = selectedSongs.isNotEmpty()
+
+    val shareViewModel: ShareViewModel = hiltViewModel()
+    var showShareSheet by remember { mutableStateOf(false) }
 
     var showAddToPlaylistDialog by remember { mutableStateOf(false) }
     var songForInfoSheet by remember { mutableStateOf<Song?>(null) }
@@ -85,6 +93,16 @@ fun SongsScreen(
                         // Select All
                         IconButton(onClick = { selectedSongs = songs.toSet() }) {
                             Icon(Icons.Rounded.SelectAll, "Select All")
+                        }
+                        IconButton(onClick = {
+                            if (selectedSongs.size == 1) {
+                                shareViewModel.preselectSong(selectedSongs.first())
+                            } else {
+                                shareViewModel.preselectSong(null)
+                            }
+                            showShareSheet = true
+                        }) {
+                            Icon(Icons.Rounded.Share, "Share")
                         }
                         IconButton(onClick = { showAddToPlaylistDialog = true }) {
                             Icon(Icons.AutoMirrored.Rounded.PlaylistAdd, "Add to Playlist")
@@ -196,6 +214,14 @@ fun SongsScreen(
             onCreatePlaylist = { name ->
                 libraryViewModel.createPlaylist(name)
             }
+        )
+    }
+
+    if (showShareSheet) {
+        ShareSheet(
+            viewModel   = shareViewModel,
+            currentSong = selectedSongs.firstOrNull(),
+            onDismiss   = { showShareSheet = false },
         )
     }
 
@@ -485,20 +511,30 @@ fun PlaylistCard(playlist: Playlist, onClick: () -> Unit) {
             .clickable(onClick = onClick)
             .padding(8.dp),
     ) {
-        Surface(
-            modifier = Modifier
-                .fillMaxWidth()
-                .aspectRatio(1f),
-            shape = RoundedCornerShape(16.dp),
-            color = MaterialTheme.colorScheme.surfaceVariant,
-        ) {
-            Box(contentAlignment = Alignment.Center) {
-                Icon(
-                    Icons.AutoMirrored.Rounded.QueueMusic,
-                    null,
-                    modifier = Modifier.size(48.dp),
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
-                )
+        if (playlist.artworkUri != null) {
+            ArtworkImage(
+                uri = playlist.artworkUri,
+                contentDescription = playlist.name,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .aspectRatio(1f),
+            )
+        } else {
+            Surface(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .aspectRatio(1f),
+                shape = RoundedCornerShape(16.dp),
+                color = MaterialTheme.colorScheme.surfaceVariant,
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    Icon(
+                        Icons.AutoMirrored.Rounded.QueueMusic,
+                        null,
+                        modifier = Modifier.size(48.dp),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+                    )
+                }
             }
         }
         Spacer(Modifier.height(8.dp))
@@ -519,6 +555,7 @@ fun PlaylistCard(playlist: Playlist, onClick: () -> Unit) {
 
 // ─── Detail Screen Components ─────────────────────────────────────────────────
 
+@RequiresApi(Build.VERSION_CODES.VANILLA_ICE_CREAM)
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AlbumDetailScreen(
@@ -623,6 +660,7 @@ fun AlbumHeader(album: Album, songs: List<Song>, onPlayClick: () -> Unit) {
 
 // ─── Artist Detail Screen ─────────────────────────────────────────────────────
 
+@RequiresApi(Build.VERSION_CODES.VANILLA_ICE_CREAM)
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ArtistDetailScreen(
@@ -800,6 +838,7 @@ fun ArtistHeader(artist: Artist, songs: List<Song>, libraryViewModel: LibraryVie
 
 // ─── Playlist Detail Screen ───────────────────────────────────────────────────
 
+@RequiresApi(Build.VERSION_CODES.VANILLA_ICE_CREAM)
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
 fun PlaylistDetailScreen(
@@ -811,15 +850,60 @@ fun PlaylistDetailScreen(
 ) {
     val playlists by libraryViewModel.allPlaylists.collectAsState()
     val allSongs by libraryViewModel.allSongs.collectAsState()
+    val scope = rememberCoroutineScope()
+    val snackbarHostState = remember { SnackbarHostState() }
+    val context = LocalContext.current
 
     val playlist = remember(playlists, playlistId) { playlists.find { it.id == playlistId } }
-    val playlistSongs: List<Song> = remember(allSongs, playlist) {
-        playlist?.songs ?: emptyList()
+
+    // Sort state — persists for the session; does NOT mutate DB order until user picks "Save Order"
+    var sortOrder by remember { mutableStateOf(SortOrder.NATURAL) }
+    val playlistSongs: List<Song> = remember(allSongs, playlist, sortOrder) {
+        val base = playlist?.songs ?: emptyList()
+        when (sortOrder) {
+            SortOrder.TITLE_ASC          -> base.sortedBy { it.title.lowercase() }
+            SortOrder.TITLE_DESC         -> base.sortedByDescending { it.title.lowercase() }
+            SortOrder.ARTIST_ASC         -> base.sortedBy { it.artist.lowercase() }
+            SortOrder.ARTIST_DESC        -> base.sortedByDescending { it.artist.lowercase() }
+            SortOrder.ALBUM_ASC          -> base.sortedBy { it.album.lowercase() }
+            SortOrder.ALBUM_DESC         -> base.sortedByDescending { it.album.lowercase() }
+            SortOrder.DURATION_ASC       -> base.sortedBy { it.duration }
+            SortOrder.DURATION_DESC      -> base.sortedByDescending { it.duration }
+            SortOrder.DATE_ADDED_ASC     -> base.sortedBy { it.dateAdded }
+            SortOrder.DATE_ADDED_DESC    -> base.sortedByDescending { it.dateAdded }
+            SortOrder.LISTEN_COUNT_DESC  -> base.sortedByDescending { it.listenCount }
+            else                         -> base
+        }
     }
 
-    var showDeleteDialog by remember { mutableStateOf(false) }
+    // ── dialogs / menus ──────────────────────────────────────────────────────
+    var showDeleteDialog  by remember { mutableStateOf(false) }
+    var showRenameDialog  by remember { mutableStateOf(false) }
+    var showSortDialog    by remember { mutableStateOf(false) }
+    var showOverflowMenu  by remember { mutableStateOf(false) }
+
+    // ── image picker for playlist cover ──────────────────────────────────────
+    val imagePicker = rememberLauncherForActivityResult(
+        ActivityResultContracts.GetContent()
+    ) { uri -> uri?.let { libraryViewModel.updatePlaylistArtwork(playlistId, it) } }
+
+    // ── file creator for M3U export ──────────────────────────────────────────
+    val exportLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.CreateDocument("audio/x-mpegurl")
+    ) { uri ->
+        if (uri != null && playlist != null) {
+            try {
+                val m3u = libraryViewModel.exportPlaylistAsM3U(playlist)
+                context.contentResolver.openOutputStream(uri)?.use { it.write(m3u.toByteArray()) }
+                scope.launch { snackbarHostState.showSnackbar("Playlist exported successfully") }
+            } catch (e: Exception) {
+                scope.launch { snackbarHostState.showSnackbar("Export failed: ${e.message}") }
+            }
+        }
+    }
 
     Scaffold(
+        snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             TopAppBar(
                 title = { },
@@ -829,8 +913,59 @@ fun PlaylistDetailScreen(
                     }
                 },
                 actions = {
-                    IconButton(onClick = { showDeleteDialog = true }) {
-                        Icon(Icons.Rounded.Delete, "Delete Playlist")
+                    Box {
+                        IconButton(onClick = { showOverflowMenu = true }) {
+                            Icon(Icons.Rounded.MoreVert, "More options")
+                        }
+                        DropdownMenu(
+                            expanded = showOverflowMenu,
+                            onDismissRequest = { showOverflowMenu = false }
+                        ) {
+                            DropdownMenuItem(
+                                text = { Text("Rename") },
+                                leadingIcon = { Icon(Icons.Rounded.Edit, null) },
+                                onClick = { showOverflowMenu = false; showRenameDialog = true }
+                            )
+                            DropdownMenuItem(
+                                text = { Text("Change Cover") },
+                                leadingIcon = { Icon(Icons.Rounded.Image, null) },
+                                onClick = { showOverflowMenu = false; imagePicker.launch("image/*") }
+                            )
+                            DropdownMenuItem(
+                                text = { Text("Sort by…") },
+                                leadingIcon = { Icon(Icons.Rounded.Sort, null) },
+                                onClick = { showOverflowMenu = false; showSortDialog = true }
+                            )
+                            DropdownMenuItem(
+                                text = { Text("Remove Duplicates") },
+                                leadingIcon = { Icon(Icons.Rounded.FilterList, null) },
+                                onClick = {
+                                    showOverflowMenu = false
+                                    scope.launch {
+                                        val removed = libraryViewModel.deduplicatePlaylist(playlistId)
+                                        snackbarHostState.showSnackbar(
+                                            if (removed == 0) "No duplicates found"
+                                            else "$removed duplicate${if (removed == 1) "" else "s"} removed"
+                                        )
+                                    }
+                                }
+                            )
+                            HorizontalDivider()
+                            DropdownMenuItem(
+                                text = { Text("Export as M3U") },
+                                leadingIcon = { Icon(Icons.Rounded.FileDownload, null) },
+                                onClick = {
+                                    showOverflowMenu = false
+                                    exportLauncher.launch("${playlist?.name ?: "playlist"}.m3u8")
+                                }
+                            )
+                            HorizontalDivider()
+                            DropdownMenuItem(
+                                text = { Text("Delete Playlist", color = MaterialTheme.colorScheme.error) },
+                                leadingIcon = { Icon(Icons.Rounded.Delete, null, tint = MaterialTheme.colorScheme.error) },
+                                onClick = { showOverflowMenu = false; showDeleteDialog = true }
+                            )
+                        }
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent),
@@ -843,12 +978,17 @@ fun PlaylistDetailScreen(
                 contentPadding = PaddingValues(top = padding.calculateTopPadding(), bottom = 80.dp),
             ) {
                 item {
-                    PlaylistHeader(playlist = it, songs = playlistSongs) {
-                        if (playlistSongs.isNotEmpty()) {
-                            playerViewModel.play(playlistSongs, 0)
-                            onNavigateToPlayer()
+                    PlaylistHeader(
+                        playlist = it,
+                        songs = playlistSongs,
+                        onChangeCover = { imagePicker.launch("image/*") },
+                        onPlayClick = {
+                            if (playlistSongs.isNotEmpty()) {
+                                playerViewModel.play(playlistSongs, 0)
+                                onNavigateToPlayer()
+                            }
                         }
-                    }
+                    )
                 }
                 itemsIndexed(playlistSongs) { index, song ->
                     SongCard(
@@ -870,51 +1010,115 @@ fun PlaylistDetailScreen(
         }
     }
 
+    // ── Delete dialog ─────────────────────────────────────────────────────────
     if (showDeleteDialog) {
         AlertDialog(
             onDismissRequest = { showDeleteDialog = false },
             title = { Text("Delete Playlist") },
-            text = { Text("Are you sure you want to delete this playlist?") },
+            text = { Text("Are you sure you want to delete \"${playlist?.name}\"?") },
             confirmButton = {
                 TextButton(onClick = {
                     libraryViewModel.deletePlaylist(playlistId)
                     showDeleteDialog = false
                     onBack()
-                }) {
-                    Text("Delete", color = MaterialTheme.colorScheme.error)
-                }
+                }) { Text("Delete", color = MaterialTheme.colorScheme.error) }
             },
             dismissButton = {
-                TextButton(onClick = { showDeleteDialog = false }) {
-                    Text("Cancel")
-                }
+                TextButton(onClick = { showDeleteDialog = false }) { Text("Cancel") }
+            }
+        )
+    }
+
+    // ── Rename dialog ─────────────────────────────────────────────────────────
+    if (showRenameDialog) {
+        RenamePlaylistDialog(
+            currentName = playlist?.name ?: "",
+            onDismiss = { showRenameDialog = false },
+            onConfirm = { newName ->
+                libraryViewModel.renamePlaylist(playlistId, newName)
+                showRenameDialog = false
+            }
+        )
+    }
+
+    // ── Sort dialog ───────────────────────────────────────────────────────────
+    if (showSortDialog) {
+        PlaylistSortDialog(
+            current = sortOrder,
+            onDismiss = { showSortDialog = false },
+            onSelect = { order ->
+                sortOrder = order
+                // Persist the new order into the DB so it survives restarts
+                scope.launch { libraryViewModel.reorderPlaylist(playlistId, playlistSongs) }
+                showSortDialog = false
             }
         )
     }
 }
 
 @Composable
-fun PlaylistHeader(playlist: Playlist, songs: List<Song>, onPlayClick: () -> Unit) {
+fun PlaylistHeader(
+    playlist: Playlist,
+    songs: List<Song>,
+    onChangeCover: () -> Unit,
+    onPlayClick: () -> Unit,
+) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
             .padding(24.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        Surface(
-            modifier = Modifier.size(200.dp),
-            shape = RoundedCornerShape(24.dp),
-            color = MaterialTheme.colorScheme.surfaceVariant,
+        // ── Artwork with edit-pencil overlay ──────────────────────────────────
+        Box(
+            modifier = Modifier
+                .size(200.dp)
+                .clip(RoundedCornerShape(24.dp))
+                .clickable(onClick = onChangeCover),
+            contentAlignment = Alignment.Center,
         ) {
-            Box(contentAlignment = Alignment.Center) {
+            if (playlist.artworkUri != null) {
+                ArtworkImage(
+                    uri = playlist.artworkUri,
+                    contentDescription = playlist.name,
+                    modifier = Modifier.fillMaxSize(),
+                    cornerRadius = 24.dp,
+                )
+            } else {
+                Surface(
+                    modifier = Modifier.fillMaxSize(),
+                    shape = RoundedCornerShape(24.dp),
+                    color = MaterialTheme.colorScheme.surfaceVariant,
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Icon(
+                            Icons.AutoMirrored.Rounded.QueueMusic,
+                            null,
+                            modifier = Modifier.size(80.dp),
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.3f),
+                        )
+                    }
+                }
+            }
+            // Edit badge in bottom-right corner
+            Box(
+                modifier = Modifier
+                    .align(Alignment.BottomEnd)
+                    .padding(8.dp)
+                    .size(32.dp)
+                    .clip(CircleShape)
+                    .background(MaterialTheme.colorScheme.primary),
+                contentAlignment = Alignment.Center,
+            ) {
                 Icon(
-                    Icons.AutoMirrored.Rounded.QueueMusic,
-                    null,
-                    modifier = Modifier.size(80.dp),
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.3f)
+                    Icons.Rounded.Edit,
+                    contentDescription = "Change cover",
+                    modifier = Modifier.size(16.dp),
+                    tint = MaterialTheme.colorScheme.onPrimary,
                 )
             }
         }
+
         Spacer(Modifier.height(24.dp))
         Text(
             text = playlist.name,
@@ -923,7 +1127,7 @@ fun PlaylistHeader(playlist: Playlist, songs: List<Song>, onPlayClick: () -> Uni
             textAlign = TextAlign.Center,
         )
         Text(
-            text = "${songs.size} songs",
+            text = "${songs.size} songs · ${formatDuration(songs.sumOf { it.duration })}",
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
@@ -941,8 +1145,92 @@ fun PlaylistHeader(playlist: Playlist, songs: List<Song>, onPlayClick: () -> Uni
     }
 }
 
+// ─── Rename playlist dialog ────────────────────────────────────────────────────
+
+@Composable
+fun RenamePlaylistDialog(
+    currentName: String,
+    onDismiss: () -> Unit,
+    onConfirm: (String) -> Unit,
+) {
+    var name by remember { mutableStateOf(currentName) }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Rename Playlist") },
+        text = {
+            OutlinedTextField(
+                value = name,
+                onValueChange = { name = it },
+                label = { Text("Playlist Name") },
+                singleLine = true,
+            )
+        },
+        confirmButton = {
+            TextButton(
+                onClick = { if (name.isNotBlank()) onConfirm(name.trim()) },
+                enabled = name.isNotBlank(),
+            ) { Text("Rename") }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("Cancel") }
+        }
+    )
+}
+
+// ─── Sort dialog ───────────────────────────────────────────────────────────────
+
+@Composable
+fun PlaylistSortDialog(
+    current: SortOrder,
+    onDismiss: () -> Unit,
+    onSelect: (SortOrder) -> Unit,
+) {
+    val options = listOf(
+        SortOrder.NATURAL        to "Default order",
+        SortOrder.TITLE_ASC      to "Title (A → Z)",
+        SortOrder.TITLE_DESC     to "Title (Z → A)",
+        SortOrder.ARTIST_ASC     to "Artist (A → Z)",
+        SortOrder.ARTIST_DESC    to "Artist (Z → A)",
+        SortOrder.ALBUM_ASC      to "Album (A → Z)",
+        SortOrder.ALBUM_DESC     to "Album (Z → A)",
+        SortOrder.DURATION_ASC   to "Duration (shortest first)",
+        SortOrder.DURATION_DESC  to "Duration (longest first)",
+        SortOrder.DATE_ADDED_ASC to "Date added (oldest first)",
+        SortOrder.DATE_ADDED_DESC to "Date added (newest first)",
+        SortOrder.LISTEN_COUNT_DESC to "Most played",
+    )
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Sort playlist") },
+        text = {
+            Column {
+                options.forEach { (order, label) ->
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { onSelect(order) }
+                            .padding(vertical = 10.dp, horizontal = 4.dp),
+                    ) {
+                        RadioButton(
+                            selected = current == order,
+                            onClick = { onSelect(order) },
+                        )
+                        Spacer(Modifier.width(8.dp))
+                        Text(label, style = MaterialTheme.typography.bodyMedium)
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) { Text("Close") }
+        }
+    )
+}
+
 // ─── Queue Screen ─────────────────────────────────────────────────────────────
 
+@RequiresApi(Build.VERSION_CODES.VANILLA_ICE_CREAM)
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
 fun QueueScreen(
@@ -1001,233 +1289,6 @@ fun QueueScreen(
             }
         }
     }
-}
-
-// ─── Settings Screen ──────────────────────────────────────────────────────────
-
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-fun SettingsScreen(onBack: () -> Unit, libraryViewModel: LibraryViewModel) {
-    val scope = rememberCoroutineScope()
-    val prefs = libraryViewModel.prefs
-
-    val dynamicColor by prefs.dynamicColorEnabled.collectAsState(initial = true)
-    val presetColorInt by prefs.presetColor.collectAsState(initial = null)
-
-    val showWaveform by prefs.showWaveformSeekbar.collectAsState(initial = true)
-    val gapless by prefs.gaplessEnabled.collectAsState(initial = true)
-    val skipSilence by prefs.skipSilence.collectAsState(initial = false)
-    val crossfadeMs by prefs.crossfadeDurationMs.collectAsState(initial = 0)
-    val replayGainMode by prefs.replayGainMode.collectAsState(initial = "TRACK")
-    val fetchArtistImages by prefs.fetchArtistImages.collectAsState(initial = true)
-    val isSyncing by libraryViewModel.isSyncing.collectAsState()
-
-    Scaffold(
-        topBar = {
-            LargeTopAppBar(
-                title = { Text("Settings") },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Rounded.ArrowBack, "Back")
-                    }
-                },
-            )
-        }
-    ) { padding ->
-        LazyColumn(
-            contentPadding = PaddingValues(
-                top = padding.calculateTopPadding(),
-                bottom = padding.calculateBottomPadding() + 32.dp,
-            ),
-        ) {
-            item { SettingsGroupHeader("Appearance") }
-            item {
-                SettingsToggle(
-                    title = "System Dynamic Color",
-                    subtitle = "Use Android 12+ wallpaper colors",
-                    checked = dynamicColor,
-                    onToggle = { scope.launch { prefs.setDynamicColorEnabled(it) } }
-                )
-            }
-
-            if (!dynamicColor) {
-                item {
-                    Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
-                        Text(
-                            "Theme Preset",
-                            style = MaterialTheme.typography.titleMedium,
-                            modifier = Modifier.padding(bottom = 8.dp)
-                        )
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(12.dp)
-                        ) {
-                            PresetColors.forEach { color ->
-                                Box(
-                                    modifier = Modifier
-                                        .size(40.dp)
-                                        .clip(CircleShape)
-                                        .background(color)
-                                        .border(
-                                            width = if (presetColorInt == color.toArgb()) 3.dp else 0.dp,
-                                            color = MaterialTheme.colorScheme.onSurface,
-                                            shape = CircleShape
-                                        )
-                                        .clickable {
-                                            scope.launch { prefs.setPresetColor(color.toArgb()) }
-                                        }
-                                )
-                            }
-                        }
-                    }
-                }
-            }
-
-            item {
-                SettingsToggle(
-                    title = "Waveform Seekbar",
-                    subtitle = "Show audio waveform in player",
-                    checked = showWaveform,
-                    onToggle = { scope.launch { prefs.setShowWaveformSeekbar(it) } }
-                )
-            }
-
-            item { SettingsGroupHeader("Library") }
-            item {
-                SettingsToggle(
-                    title = "Fetch Artist Images",
-                    subtitle = "Download artist photos from Deezer",
-                    checked = fetchArtistImages,
-                    onToggle = { scope.launch { prefs.setFetchArtistImages(it) } }
-                )
-            }
-            item {
-                ListItem(
-                    modifier = Modifier.clickable { libraryViewModel.syncLibrary() },
-                    headlineContent = { Text("Scan for Music") },
-                    supportingContent = { Text("Search device for new audio files") },
-                    trailingContent = {
-                        if (isSyncing) {
-                            CircularProgressIndicator(modifier = Modifier.size(24.dp))
-                        } else {
-                            Icon(Icons.Rounded.Refresh, null)
-                        }
-                    },
-                    colors = ListItemDefaults.colors(containerColor = Color.Transparent)
-                )
-            }
-
-            item { SettingsGroupHeader("Playback") }
-            item {
-                SettingsToggle(
-                    title = "Gapless Playback",
-                    checked = gapless,
-                    onToggle = { scope.launch { prefs.setGaplessEnabled(it) } }
-                )
-            }
-            item {
-                SettingsToggle(
-                    title = "Skip Silence",
-                    checked = skipSilence,
-                    onToggle = { scope.launch { prefs.setSkipSilence(it) } }
-                )
-            }
-            item {
-                SettingsSlider(
-                    title = "Crossfade Duration",
-                    subtitle = "${crossfadeMs}ms",
-                    value = crossfadeMs.toFloat(),
-                    range = 0f..10000f,
-                    onValueChange = { scope.launch { prefs.setCrossfadeDuration(it.toInt()) } }
-                )
-            }
-
-            item { SettingsGroupHeader("Audio") }
-            item {
-                SettingsItem(
-                    title = "ReplayGain Mode",
-                    subtitle = replayGainMode,
-                    onClick = {
-                        val next = when(replayGainMode) {
-                            "TRACK" -> "ALBUM"
-                            "ALBUM" -> "OFF"
-                            else -> "TRACK"
-                        }
-                        scope.launch { prefs.setReplayGainMode(next) }
-                    }
-                )
-            }
-
-            item { SettingsGroupHeader("About") }
-            item { SettingsItem("Resonance", "v1.2.0 · Expressive Edition") }
-        }
-    }
-}
-
-@Composable
-private fun SettingsGroupHeader(title: String) {
-    Text(
-        text = title,
-        style = MaterialTheme.typography.labelLarge,
-        color = MaterialTheme.colorScheme.primary,
-        modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 24.dp, bottom = 8.dp),
-    )
-}
-
-@Composable
-private fun SettingsItem(title: String, subtitle: String, onClick: () -> Unit = {}) {
-    ListItem(
-        modifier = Modifier.clickable { onClick() },
-        headlineContent = { Text(title) },
-        supportingContent = { Text(subtitle, color = MaterialTheme.colorScheme.onSurfaceVariant) },
-        colors = ListItemDefaults.colors(containerColor = Color.Transparent)
-    )
-}
-
-@Composable
-private fun SettingsToggle(
-    title: String,
-    subtitle: String? = null,
-    checked: Boolean,
-    onToggle: (Boolean) -> Unit,
-) {
-    ListItem(
-        modifier = Modifier.clickable { onToggle(!checked) },
-        headlineContent = { Text(title) },
-        supportingContent = subtitle?.let { { Text(it, color = MaterialTheme.colorScheme.onSurfaceVariant) } },
-        trailingContent = {
-            Switch(
-                checked = checked,
-                onCheckedChange = onToggle,
-            )
-        },
-        colors = ListItemDefaults.colors(containerColor = Color.Transparent)
-    )
-}
-
-@Composable
-private fun SettingsSlider(
-    title: String,
-    subtitle: String,
-    value: Float,
-    range: ClosedFloatingPointRange<Float>,
-    onValueChange: (Float) -> Unit,
-) {
-    ListItem(
-        headlineContent = { Text(title) },
-        supportingContent = {
-            Column {
-                Text(subtitle, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                Slider(
-                    value = value,
-                    onValueChange = onValueChange,
-                    valueRange = range,
-                    modifier = Modifier.padding(top = 4.dp),
-                )
-            }
-        },
-        colors = ListItemDefaults.colors(containerColor = Color.Transparent)
-    )
 }
 
 @Composable
@@ -1381,6 +1442,7 @@ fun SongInfoBottomSheet(
 
 // ─── Liked Songs Screen ───────────────────────────────────────────────────────
 
+@RequiresApi(Build.VERSION_CODES.VANILLA_ICE_CREAM)
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun LikedSongsScreen(
@@ -1501,6 +1563,7 @@ fun LikedSongsScreen(
 
 // ─── Search Screen ────────────────────────────────────────────────────────────
 
+@RequiresApi(Build.VERSION_CODES.VANILLA_ICE_CREAM)
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SearchScreen(

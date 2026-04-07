@@ -160,7 +160,7 @@ class MusicService : MediaSessionService() {
             prefs.skipSilence.collect { player.skipSilenceEnabled = it }
         }
 
-        // ── 1. GAPLESS PLAYBACK ───────────────────────────────────────────────
+        // ── GAPLESS PLAYBACK ───────────────────────────────────────────────
         // ExoPlayer performs seamless gapless playback by default when it can
         // parse iTunSMPB / LAME Gapless Info tags embedded in MP3 headers.
         // When gapless is OFF we deliberately insert a silent pause between tracks
@@ -173,7 +173,24 @@ class MusicService : MediaSessionService() {
             }
         }
 
-        // ── 2. CROSSFADE ──────────────────────────────────────────────────────
+        // ── AUDIO DUCKING (FOCUS LOSS) ────────────────────────────────────────
+        scope.launch {
+            prefs.duckAudioOnFocusLoss.collect { duckAudio ->
+                // Update audio focus handling dynamically
+                val currentAttrs = player.audioAttributes
+                player.setAudioAttributes(currentAttrs, duckAudio)
+            }
+        }
+
+        // ── PAUSE ON HEADPHONES OUT (BECOMING NOISY) ──────────────────────────
+        scope.launch {
+            prefs.pauseOnHeadphonesOut.collect { pauseOnDisconnect ->
+                // Update becoming-noisy handling dynamically
+                player.setHandleAudioBecomingNoisy(pauseOnDisconnect)
+            }
+        }
+
+        // ── CROSSFADE ──────────────────────────────────────────────────────
         scope.launch {
             prefs.crossfadeDurationMs.collect { ms ->
                 crossfadeDurationMs = ms
@@ -181,7 +198,7 @@ class MusicService : MediaSessionService() {
             }
         }
 
-        // ── 3. VOLUME NORMALISATION ───────────────────────────────────────────
+        // ── VOLUME NORMALISATION ───────────────────────────────────────────
         scope.launch {
             prefs.volumeNormalization.collect { enabled ->
                 volumeNormalizationEnabled = enabled
@@ -189,7 +206,7 @@ class MusicService : MediaSessionService() {
             }
         }
 
-        // ── 4. REPLAYGAIN MODE ────────────────────────────────────────────────
+        // ── REPLAYGAIN MODE ────────────────────────────────────────────────
         scope.launch {
             prefs.replayGainMode.collect { mode ->
                 replayGainMode = mode
@@ -203,21 +220,21 @@ class MusicService : MediaSessionService() {
             }
         }
 
-        // ── 5. RESUME ON HEADPHONES ───────────────────────────────────────────
+        // ── RESUME ON HEADPHONES ───────────────────────────────────────────
         scope.launch {
             prefs.resumeOnHeadphones.collect { enabled ->
                 resumeOnHeadphones = enabled
             }
         }
 
-        // ── 6. LOCKSCREEN ARTWORK ─────────────────────────────────────────────
+        // ── LOCKSCREEN ARTWORK ─────────────────────────────────────────────
         scope.launch {
             prefs.lockscreenArtwork.collect { enabled ->
                 applyLockscreenArtwork(enabled)
             }
         }
 
-        // ── 7. SHOW SKIP BUTTONS ──────────────────────────────────────────────
+        // ── SHOW SKIP BUTTONS ──────────────────────────────────────────────
         scope.launch {
             prefs.showSkipButtons.collect { show ->
                 showSkipButtons = show
@@ -226,7 +243,7 @@ class MusicService : MediaSessionService() {
         }
     }
 
-    // ─── Feature 1+2: Gapless / Crossfade ─────────────────────────────────────
+    // ─── Gapless / Crossfade ─────────────────────────────────────
 
     /**
      * Schedules a volume fade-out that fires [crossfadeDurationMs] before the
@@ -292,7 +309,7 @@ class MusicService : MediaSessionService() {
         }
     }
 
-    // ─── Features 3+4: Volume Normalisation + ReplayGain ──────────────────────
+    // ─── Volume Normalisation + ReplayGain ──────────────────────
 
     /**
      * Computes the target ExoPlayer volume (0.01–4.0 linear) for the current
@@ -351,7 +368,7 @@ class MusicService : MediaSessionService() {
         player.volume = computeTargetVolume()
     }
 
-    // ─── Feature 6: Lockscreen Artwork ────────────────────────────────────────
+    // ─── Lockscreen Artwork ────────────────────────────────────────
 
     /**
      * Controls whether album art is shown on the lock-screen media controls.
@@ -387,7 +404,7 @@ class MusicService : MediaSessionService() {
         }
     }
 
-    // ─── Feature 7: Show Skip Buttons ─────────────────────────────────────────
+    // ─── Show Skip Buttons ─────────────────────────────────────────
 
     /**
      * Rebuilds the MediaSession custom layout to include or exclude skip
@@ -415,7 +432,7 @@ class MusicService : MediaSessionService() {
         mediaSession.setCustomLayout(layout)
     }
 
-    // ─── Feature 5: Resume on Headphones ─────────────────────────────────────
+    // ─── Resume on Headphones ─────────────────────────────────────
 
     private fun registerHeadphonesReceiver() {
         headphonesReceiver = object : BroadcastReceiver() {

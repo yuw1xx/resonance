@@ -40,6 +40,9 @@ interface SongDao {
     @Query("DELETE FROM songs WHERE id NOT IN (:existingIds)")
     suspend fun deleteRemovedSongs(existingIds: List<Long>)
 
+    @Query("DELETE FROM songs")
+    suspend fun deleteAllSongs()
+
     @Query("UPDATE songs SET listenCount = listenCount + 1, lastListened = :time WHERE id = :id")
     suspend fun incrementListenCount(id: Long, time: Long)
 
@@ -122,6 +125,9 @@ interface HistoryDao {
 
     @Query("DELETE FROM history")
     suspend fun clearAllHistory()
+
+    @Query("DELETE FROM history WHERE id NOT IN (SELECT id FROM history ORDER BY listenedAt DESC LIMIT :limit)")
+    suspend fun trimHistory(limit: Int)
 }
 
 @Dao

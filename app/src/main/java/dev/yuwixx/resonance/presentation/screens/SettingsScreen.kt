@@ -20,6 +20,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
@@ -31,10 +32,13 @@ import dev.yuwixx.resonance.data.repository.LastFmAuthState
 import dev.yuwixx.resonance.presentation.viewmodel.LibraryViewModel
 import dev.yuwixx.resonance.presentation.viewmodel.SettingsViewModel
 import kotlinx.coroutines.launch
+import kotlin.math.roundToInt
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettingsScreen(
     onBack: () -> Unit,
+    onNavigateToLicenses: () -> Unit,
     libraryViewModel: LibraryViewModel,
     settingsViewModel: SettingsViewModel,
 ) {
@@ -42,7 +46,8 @@ fun SettingsScreen(
     val prefs = libraryViewModel.prefs
     val snackbarHostState = remember { SnackbarHostState() }
 
-    // ── Collect all preference state ──────────────────────────────────────────
+    // Updates
+    val updateFreq by settingsViewModel.updateFrequency.collectAsState()
 
     // Appearance
     val dynamicColor by prefs.dynamicColorEnabled.collectAsState(initial = true)
@@ -101,7 +106,6 @@ fun SettingsScreen(
     val lastFmEnabled by settingsViewModel.lastFmEnabled.collectAsState()
     val lastFmNowPlaying by settingsViewModel.lastFmNowPlaying.collectAsState()
     val lastFmOnlyWifi by settingsViewModel.lastFmOnlyWifi.collectAsState()
-    // Scrobble threshold options — now properly persisted via SettingsViewModel
     val lastFmScrobblePct by settingsViewModel.lastFmScrobblePct.collectAsState()
     val lastFmScrobbleMinSecs by settingsViewModel.lastFmScrobbleMinSecs.collectAsState()
     val lastFmOfflineQueue by settingsViewModel.lastFmOfflineQueue.collectAsState()
@@ -111,16 +115,9 @@ fun SettingsScreen(
     Scaffold(
         topBar = {
             LargeTopAppBar(
-                title = {
-                    Text(
-                        "Settings",
-                        fontWeight = FontWeight.Bold,
-                    )
-                },
+                title = { Text("Settings", fontWeight = FontWeight.Bold) },
                 navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Rounded.ArrowBack, "Back")
-                    }
+                    IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Rounded.ArrowBack, "Back") }
                 },
                 colors = TopAppBarDefaults.largeTopAppBarColors(
                     containerColor = MaterialTheme.colorScheme.surfaceContainer,
@@ -135,6 +132,60 @@ fun SettingsScreen(
                 bottom = padding.calculateBottomPadding() + 32.dp,
             ),
         ) {
+
+            // ─── Updates ──────────────────────────────────────────────────────
+            settingsSectionHeader("Updates", Icons.Rounded.SystemUpdate)
+
+            item {
+                var showDisableWarning by remember { mutableStateOf(false) }
+
+                SegmentedSettingsItem(
+                    title = "Check for Updates",
+                    options = listOf("Launch" to "LAUNCH", "Daily" to "DAILY", "Weekly" to "WEEKLY", "Off" to "DISABLED"),
+                    selected = updateFreq,
+                    onSelect = {
+                        if (it == "DISABLED") {
+                            showDisableWarning = true
+                        } else {
+                            settingsViewModel.setUpdateFrequency(it)
+                        }
+                    },
+                )
+
+                if (showDisableWarning) {
+                    AlertDialog(
+                        onDismissRequest = { showDisableWarning = false },
+                        icon = { Icon(Icons.Rounded.Warning, null, tint = MaterialTheme.colorScheme.error) },
+                        title = { Text("Disable Updates?") },
+                        text = { Text("It is highly recommended to keep update checks enabled so you don't miss bug fixes and new features.\n\nAre you sure you want to disable automatic checks?") },
+                        confirmButton = {
+                            Button(
+                                onClick = {
+                                    settingsViewModel.setUpdateFrequency("DISABLED")
+                                    showDisableWarning = false
+                                },
+                                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
+                            ) { Text("Disable") }
+                        },
+                        dismissButton = {
+                            TextButton(onClick = { showDisableWarning = false }) { Text("Keep Enabled") }
+                        }
+                    )
+                }
+            }
+
+            item {
+                val context = LocalContext.current
+                val pkgInfo = context.packageManager.getPackageInfo(context.packageName, 0)
+                val versionName = pkgInfo.versionName ?: "1.0.0"
+
+                SettingsTextItem(
+                    title = "Check Now",
+                    subtitle = "Current version: v$versionName",
+                    icon = Icons.Rounded.Update,
+                    onClick = { settingsViewModel.checkForUpdates(versionName, isManual = true) }
+                )
+            }
 
             // ─── Appearance ───────────────────────────────────────────────────
             settingsSectionHeader("Appearance", Icons.Rounded.Palette)
@@ -178,7 +229,7 @@ fun SettingsScreen(
                     )
                 }
             }
-            settingsToggle("Artwork Animation", "Scale & rotate artwork on play/pause", artworkAnimation) {
+            settingsToggle("Artwork Animation", "Scale artwork on play/pause", artworkAnimation) {
                 scope.launch { prefs.setArtworkAnimation(it) }
             }
             settingsToggle("Haptic Feedback", "Vibrate on seek and long-press", hapticFeedback) {
@@ -234,10 +285,14 @@ fun SettingsScreen(
                 SettingsSliderItem(
                     title = "Lyrics Font Size",
                     value = lyricsFontScale,
-                    range = 0.75f..1.5f,
+                    range = 0.50f..1.75f,
                     label = "${(lyricsFontScale * 100).toInt()}%",
-                    steps = 3,
-                    onValueChange = { scope.launch { prefs.setLyricsFontScale(it) } },
+                    steps = 4,
+                    onValueChange = { newValue ->
+                        val step = 0.25f
+                        val rounded = (newValue / step).roundToInt() * step
+                        scope.launch { prefs.setLyricsFontScale(rounded.coerceIn(0.50f, 1.75f)) }
+                    },
                 )
             }
 
@@ -257,7 +312,11 @@ fun SettingsScreen(
                     range = 0f..10000f,
                     label = if (crossfadeMs == 0) "Disabled" else "${crossfadeMs / 1000}s",
                     steps = 10,
-                    onValueChange = { scope.launch { prefs.setCrossfadeDuration(it.toInt()) } },
+                    onValueChange = { newValue ->
+                        val step = 1000f
+                        val rounded = (newValue / step).roundToInt() * step
+                        scope.launch { prefs.setCrossfadeDuration(rounded.toInt()) }
+                    },
                 )
             }
             item {
@@ -266,8 +325,12 @@ fun SettingsScreen(
                     value = playbackSpeed,
                     range = 0.5f..2.0f,
                     label = "${playbackSpeed}x",
-                    steps = 15,
-                    onValueChange = { scope.launch { prefs.setPlaybackSpeed(it) } },
+                    steps = 6,
+                    onValueChange = { newValue ->
+                        val step = 0.25f
+                        val rounded = (newValue / step).roundToInt() * step
+                        scope.launch { prefs.setPlaybackSpeed(rounded.coerceIn(0.5f, 2.0f)) }
+                    },
                 )
             }
             item {
@@ -276,8 +339,12 @@ fun SettingsScreen(
                     value = playbackPitch,
                     range = 0.5f..2.0f,
                     label = "${playbackPitch}x",
-                    steps = 15,
-                    onValueChange = { scope.launch { prefs.setPlaybackPitch(it) } },
+                    steps = 6,
+                    onValueChange = { newValue ->
+                        val step = 0.25f
+                        val rounded = (newValue / step).roundToInt() * step
+                        scope.launch { prefs.setPlaybackPitch(rounded.coerceIn(0.5f, 2.0f)) }
+                    },
                 )
             }
             settingsToggle("Resume on Headphones", "Continue playback when headphones are connected", resumeOnHeadphones) {
@@ -309,7 +376,11 @@ fun SettingsScreen(
                     title = "ReplayGain Preamp",
                     value = replayGainPreamp,
                     range = -15f..15f,
-                    label = "${if (replayGainPreamp > 0) "+" else ""}${replayGainPreamp.toInt()} dB",
+                    label = when {
+                        replayGainPreamp == 0f -> "0 dB"
+                        replayGainPreamp > 0 -> "+${replayGainPreamp.toInt()} dB"
+                        else -> "${replayGainPreamp.toInt()} dB"
+                    },
                     steps = 30,
                     onValueChange = { scope.launch { prefs.setReplayGainPreamp(it) } },
                 )
@@ -332,8 +403,12 @@ fun SettingsScreen(
                     value = (minDurationMs / 1000f),
                     range = 0f..300f,
                     label = if (minDurationMs == 0L) "No filter" else "${minDurationMs / 1000}s",
-                    steps = 29,
-                    onValueChange = { scope.launch { prefs.setMinTrackDuration((it * 1000).toLong()) } },
+                    steps = 30,
+                    onValueChange = { newValue ->
+                        val step = 10f
+                        val rounded = (newValue / step).roundToInt() * step
+                        scope.launch { prefs.setMinTrackDuration((rounded.toLong() * 1000).coerceAtLeast(0)) }
+                    },
                 )
             }
             settingsToggle("Show Artwork in Lists", "Display album art thumbnails in song lists", showArtworkList) {
@@ -450,7 +525,12 @@ fun SettingsScreen(
                         range = 10f..120f,
                         label = "${minListenSecs}s",
                         steps = 11,
-                        onValueChange = { scope.launch { prefs.setListenThresholds(it.toInt(), minListenPct) } },
+                        onValueChange = { newValue ->
+                            val step = 10f
+                            val rounded = (newValue / step).roundToInt() * step
+                            val finalSecs = rounded.toInt().coerceIn(10, 120)
+                            scope.launch { prefs.setListenThresholds(finalSecs, minListenPct) }
+                        },
                     )
                 }
                 item {
@@ -460,7 +540,12 @@ fun SettingsScreen(
                         range = 0.1f..1.0f,
                         label = "${(minListenPct * 100).toInt()}%",
                         steps = 9,
-                        onValueChange = { scope.launch { prefs.setListenThresholds(minListenSecs, it) } },
+                        onValueChange = { newValue ->
+                            val step = 0.1f
+                            val rounded = (newValue / step).roundToInt() * step
+                            val finalPct = rounded.coerceIn(0.1f, 1.0f)
+                            scope.launch { prefs.setListenThresholds(minListenSecs, finalPct) }
+                        },
                     )
                 }
                 item {
@@ -470,7 +555,12 @@ fun SettingsScreen(
                         range = 100f..5000f,
                         label = "$maxHistory items",
                         steps = 49,
-                        onValueChange = { scope.launch { prefs.setMaxHistoryItems(it.toInt()) } },
+                        onValueChange = { newValue ->
+                            val step = 100f
+                            val rounded = (newValue / step).roundToInt() * step
+                            val final = rounded.toInt().coerceIn(100, 5000)
+                            scope.launch { prefs.setMaxHistoryItems(final) }
+                        },
                     )
                 }
             }
@@ -498,11 +588,19 @@ fun SettingsScreen(
             item {
                 val uriHandler = LocalUriHandler.current
                 SettingsTextItem(
-                    title = "Open Source Licenses",
-                    subtitle = "Third-party libraries used in Resonance",
-                    icon = Icons.Rounded.Description,
+                    title = "App License",
+                    subtitle = "View Resonance's open source license",
+                    icon = Icons.Rounded.Gavel,
                     trailingIcon = Icons.AutoMirrored.Rounded.OpenInNew,
                     onClick = { uriHandler.openUri("https://github.com/yuw1xx/resonance/blob/main/LICENSE") },
+                )
+            }
+            item {
+                SettingsTextItem(
+                    title = "Third-Party Licenses",
+                    subtitle = "Open source libraries used in this project",
+                    icon = Icons.Rounded.Description,
+                    onClick = onNavigateToLicenses,
                 )
             }
 
@@ -734,7 +832,6 @@ private fun LastFmSection(
         }
     }
 
-    // ── Login Dialog ──────────────────────────────────────────────────────────
     if (showLoginDialog) {
         LastFmLoginDialog(
             onDismiss = { showLoginDialog = false },
@@ -742,32 +839,6 @@ private fun LastFmSection(
                 onLogin(u, p)
                 showLoginDialog = false
             },
-        )
-    }
-}
-
-@Composable
-private fun LastFmSetupStep(step: Int, text: String) {
-    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-        Surface(
-            shape = CircleShape,
-            color = MaterialTheme.colorScheme.primaryContainer,
-            modifier = Modifier.size(22.dp),
-        ) {
-            Box(contentAlignment = Alignment.Center) {
-                Text(
-                    "$step",
-                    style = MaterialTheme.typography.labelSmall,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onPrimaryContainer,
-                )
-            }
-        }
-        Text(
-            text,
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.weight(1f),
         )
     }
 }
@@ -1028,8 +1099,6 @@ private fun ScanLibraryItem(isSyncing: Boolean, onScan: () -> Unit) {
         colors = ListItemDefaults.colors(containerColor = Color.Transparent),
     )
 }
-
-// ─── Section header ───────────────────────────────────────────────────────────
 
 private fun LazyListScope.settingsSectionHeader(title: String, icon: ImageVector) {
     item {

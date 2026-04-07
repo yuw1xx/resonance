@@ -111,6 +111,46 @@ class PlaylistRepository @Inject constructor(
         return sb.toString().trimEnd()
     }
 
+    suspend fun updatePlaylistArtwork(playlistId: Long, artworkUri: Uri?) {
+        val entity = playlistDao.getPlaylistById(playlistId) ?: return
+        playlistDao.updatePlaylist(
+            entity.copy(
+                artworkUri = artworkUri?.toString(),
+                dateModified = System.currentTimeMillis(),
+            )
+        )
+    }
+
+    /**
+     * Persists a new song order (e.g. after the user sorts the playlist).
+     * Writes updated positions for every song in one batch.
+     */
+    suspend fun reorderPlaylist(playlistId: Long, songs: List<Song>) {
+        songs.forEachIndexed { index, song ->
+            playlistDao.updateSongPosition(playlistId, song.id, index)
+        }
+        updateModifiedTime(playlistId)
+    }
+
+    /**
+     * Removes duplicate songs from a playlist by comparing (title, artist) metadata.
+     * The first occurrence of each unique pair is kept; subsequent ones are removed.
+     * Returns the number of duplicates removed.
+     */
+    suspend fun deduplicatePlaylist(playlistId: Long): Int = withContext(Dispatchers.IO) {
+        val refs = playlistDao.getPlaylistSongRefs(playlistId)
+        val seen = mutableSetOf<String>()
+        val toRemove = mutableListOf<Long>()
+        refs.forEach { ref ->
+            val song = songDao.getSongById(ref.songId) ?: return@forEach
+            val key = "${song.title.trim().lowercase()}|${song.artist.trim().lowercase()}"
+            if (!seen.add(key)) toRemove.add(ref.songId)
+        }
+        toRemove.forEach { songId -> playlistDao.removeSongFromPlaylist(playlistId, songId) }
+        if (toRemove.isNotEmpty()) updateModifiedTime(playlistId)
+        toRemove.size
+    }
+
     private suspend fun updateModifiedTime(playlistId: Long) {
         val entity = playlistDao.getPlaylistById(playlistId) ?: return
         playlistDao.updatePlaylist(entity.copy(dateModified = System.currentTimeMillis()))

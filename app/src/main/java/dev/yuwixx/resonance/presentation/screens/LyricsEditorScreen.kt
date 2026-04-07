@@ -1,5 +1,7 @@
 package dev.yuwixx.resonance.presentation.screens
 
+import android.os.Build
+import androidx.annotation.RequiresApi
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -19,6 +21,7 @@ import javax.inject.Inject
  * Allows the user to paste or type LRC-formatted lyrics (or plain text)
  * which are saved to the local Room cache for future playback.
  */
+@RequiresApi(Build.VERSION_CODES.VANILLA_ICE_CREAM)
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun LyricsEditorScreen(

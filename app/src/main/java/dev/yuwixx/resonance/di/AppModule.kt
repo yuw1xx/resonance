@@ -15,6 +15,7 @@ import dagger.hilt.components.SingletonComponent
 import dev.yuwixx.resonance.data.database.ResonanceDatabase
 import dev.yuwixx.resonance.data.database.dao.*
 import dev.yuwixx.resonance.data.network.DeezerApi
+import dev.yuwixx.resonance.data.network.GitHubApi
 import dev.yuwixx.resonance.data.network.LastFmApi
 import dev.yuwixx.resonance.data.network.LrclibApi
 import okhttp3.OkHttpClient
@@ -57,6 +58,11 @@ object NetworkModule {
         .addInterceptor(HttpLoggingInterceptor().apply { level = HttpLoggingInterceptor.Level.BASIC })
         .build()
 
+    @Singleton @Provides @Named("github")
+    fun provideGitHubRetrofit(okHttp: OkHttpClient, moshi: Moshi): Retrofit =
+        Retrofit.Builder().baseUrl("https://api.github.com/")
+            .client(okHttp).addConverterFactory(MoshiConverterFactory.create(moshi)).build()
+
     @Singleton @Provides @Named("lrclib")
     fun provideLrclibRetrofit(okHttp: OkHttpClient, moshi: Moshi): Retrofit =
         Retrofit.Builder().baseUrl("https://lrclib.net/")
@@ -67,14 +73,14 @@ object NetworkModule {
         Retrofit.Builder().baseUrl("https://api.deezer.com/")
             .client(okHttp).addConverterFactory(MoshiConverterFactory.create(moshi)).build()
 
-    /**
-     * Last.fm API endpoint.
-     * Register your app at https://www.last.fm/api/account/create to obtain an API key.
-     */
     @Singleton @Provides @Named("lastfm")
     fun provideLastFmRetrofit(okHttp: OkHttpClient, moshi: Moshi): Retrofit =
         Retrofit.Builder().baseUrl("https://ws.audioscrobbler.com/")
             .client(okHttp).addConverterFactory(MoshiConverterFactory.create(moshi)).build()
+
+    @Singleton @Provides
+    fun provideGitHubApi(@Named("github") retrofit: Retrofit): GitHubApi =
+        retrofit.create(GitHubApi::class.java)
 
     @Singleton @Provides
     fun provideLrclibApi(@Named("lrclib") retrofit: Retrofit): LrclibApi =

@@ -74,7 +74,7 @@ fun SleepTimerDialog(
         confirmButton = {
             TextButton(onClick = {
                 if (mode == "minutes") {
-                    onSetTimer(SleepTimer.AfterMinutes(selectedMinutes, System.currentTimeMillis()))
+                    onSetTimer(SleepTimer.Time(selectedMinutes, System.currentTimeMillis()))
                 } else {
                     onSetAfterTracks(selectedTracks)
                 }

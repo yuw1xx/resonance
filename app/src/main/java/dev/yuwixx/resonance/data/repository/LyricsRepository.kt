@@ -137,6 +137,7 @@ class LyricsRepository @Inject constructor(
 }
 
 sealed class LyricsResult {
+    data object Loading : LyricsResult()
     data class Synced(val lines: List<LyricLine>) : LyricsResult()
     data class Plain(val lines: List<String>) : LyricsResult()
     data object NotFound : LyricsResult()

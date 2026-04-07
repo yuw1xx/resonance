@@ -1,5 +1,7 @@
 package dev.yuwixx.resonance.presentation.components
 
+import android.os.Build
+import androidx.annotation.RequiresApi
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.*
@@ -351,174 +353,104 @@ fun PlayingBarsIndicator(
     }
 }
 
-// ─── Particles Effect ─────────────────────────────────────────────────────────
-
-@Composable
-fun ParticlesEffect(
-    modifier: Modifier = Modifier,
-    color: Color = MaterialTheme.colorScheme.primary,
-    audioPeak: Float = 0.5f,
-    particleCount: Int = 30,
-) {
-    data class Particle(
-        val x: Float, val y: Float, val radius: Float,
-        val speedX: Float, val speedY: Float, val alpha: Float,
-    )
-
-    var particles by remember {
-        mutableStateOf(
-            List(particleCount) {
-                Particle(
-                    x = Random.nextFloat(),
-                    y = Random.nextFloat(),
-                    radius = Random.nextFloat() * 4f + 1f,
-                    speedX = (Random.nextFloat() - 0.5f) * 0.002f,
-                    speedY = -(Random.nextFloat() * 0.003f + 0.001f),
-                    alpha = Random.nextFloat() * 0.6f + 0.1f,
-                )
-            }
-        )
-    }
-
-    val speedMultiplier = 1f + audioPeak * 3f
-
-    LaunchedEffect(Unit) {
-        while (true) {
-            delay(16)
-            particles = particles.map { p ->
-                var nx = p.x + p.speedX * speedMultiplier
-                var ny = p.y + p.speedY * speedMultiplier
-                if (ny < 0f) ny = 1f
-                if (nx < 0f) nx = 1f else if (nx > 1f) nx = 0f
-                p.copy(x = nx, y = ny)
-            }
-        }
-    }
-
-    Canvas(modifier = modifier) {
-        particles.forEach { p ->
-            drawCircle(
-                color = color.copy(alpha = p.alpha),
-                radius = p.radius,
-                center = Offset(p.x * size.width, p.y * size.height),
-            )
-        }
-    }
-}
-
-// ─── Party Mode Edge Breathing Effect ─────────────────────────────────────────
-
-@Composable
-fun PartyModeEdge(
-    modifier: Modifier = Modifier,
-    colors: List<Color>,
-) {
-    val infiniteTransition = rememberInfiniteTransition(label = "party")
-    val phase by infiniteTransition.animateFloat(
-        initialValue = 0f,
-        targetValue = 1f,
-        animationSpec = infiniteRepeatable(tween(2500), RepeatMode.Reverse),
-        label = "party_phase",
-    )
-
-    Canvas(modifier = modifier.fillMaxSize()) {
-        val strokeWidth = 8.dp.toPx() * (0.6f + 0.4f * phase)
-        val colorIdx = (phase * (colors.size - 1)).toInt().coerceIn(0, colors.lastIndex)
-        drawRect(
-            color = colors[colorIdx].copy(alpha = 0.7f + 0.3f * phase),
-            topLeft = Offset(strokeWidth / 2, strokeWidth / 2),
-            size = androidx.compose.ui.geometry.Size(
-                size.width - strokeWidth,
-                size.height - strokeWidth,
-            ),
-            style = androidx.compose.ui.graphics.drawscope.Stroke(strokeWidth),
-        )
-    }
-}
-
 // ─── Mini Player ─────────────────────────────────────────────────────────────
 
+@RequiresApi(Build.VERSION_CODES.VANILLA_ICE_CREAM)
 @Composable
 fun MiniPlayer(
     playerViewModel: PlayerViewModel,
+    style: String = "CARD",
     onClick: () -> Unit,
-    modifier: Modifier = Modifier,
 ) {
     val currentSong by playerViewModel.currentSong.collectAsState()
     val isPlaying by playerViewModel.isPlaying.collectAsState()
     val positionMs by playerViewModel.positionMs.collectAsState()
     val durationMs by playerViewModel.durationMs.collectAsState()
+
     val song = currentSong ?: return
 
-    val progress = if (durationMs > 0) (positionMs.toFloat() / durationMs) else 0f
+    // ─── Apply the user's styling preference ──────────────────────────────
+    val (outerPadding, cornerRadius, elevation) = when (style) {
+        "COMPACT"  -> Triple(0.dp, 0.dp, 0.dp)
+        "FLOATING" -> Triple(16.dp, 28.dp, 8.dp)
+        else       -> Triple(8.dp, 12.dp, 2.dp) // "CARD" Default
+    }
 
     Surface(
-        modifier = modifier.fillMaxWidth(),
-        color = MaterialTheme.colorScheme.surfaceContainer,
-        tonalElevation = 4.dp,
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(outerPadding)
+            .clickable(onClick = onClick),
+        shape = RoundedCornerShape(cornerRadius),
+        tonalElevation = elevation,
+        shadowElevation = elevation,
     ) {
-        Column {
+        Box(modifier = Modifier.fillMaxWidth()) {
+
+            // Progress bar anchored to the bottom
+            val progress = if (durationMs > 0) (positionMs.toFloat() / durationMs.toFloat()).coerceIn(0f, 1f) else 0f
             LinearProgressIndicator(
                 progress = { progress },
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(2.dp),
+                    .height(2.dp)
+                    .align(Alignment.BottomCenter),
                 color = MaterialTheme.colorScheme.primary,
-                trackColor = Color.Transparent,
+                trackColor = Color.Transparent
             )
 
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .clickable(onClick = onClick)
-                    .padding(horizontal = 16.dp, vertical = 10.dp),
-                verticalAlignment = Alignment.CenterVertically,
+                    .padding(8.dp),
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                ArtworkImage(
-                    uri = song.artworkUri,
-                    contentDescription = song.album,
-                    modifier = Modifier.size(44.dp),
-                    cornerRadius = 8.dp,
-                    isAnimating = isPlaying,
+                // Artwork
+                AsyncImage(
+                    model = song.artworkUri,
+                    contentDescription = null,
+                    modifier = Modifier
+                        .size(48.dp)
+                        .clip(RoundedCornerShape(if (style == "COMPACT") 4.dp else 8.dp))
+                        .background(MaterialTheme.colorScheme.surfaceVariant)
                 )
-                Spacer(Modifier.width(12.dp))
+
+                Spacer(modifier = Modifier.width(12.dp))
+
+                // Title & Artist
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
                         text = song.title,
-                        style = MaterialTheme.typography.titleSmall,
+                        style = MaterialTheme.typography.bodyLarge,
+                        fontWeight = FontWeight.Bold,
                         maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
+                        overflow = TextOverflow.Ellipsis
                     )
                     Text(
                         text = song.displayArtist,
-                        style = MaterialTheme.typography.bodySmall,
+                        style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
+                        overflow = TextOverflow.Ellipsis
                     )
                 }
-                IconButton(onClick = { playerViewModel.skipPrevious() }) {
-                    Icon(Icons.Rounded.SkipPrevious, "Previous")
+
+                // Play/Pause Button
+                IconButton(onClick = { playerViewModel.playPause() }) {
+                    Icon(
+                        imageVector = if (isPlaying) Icons.Rounded.Pause else Icons.Rounded.PlayArrow,
+                        contentDescription = if (isPlaying) "Pause" else "Play",
+                        modifier = Modifier.size(32.dp)
+                    )
                 }
-                // FIX: Animate play/pause icon in MiniPlayer the same way as PlayerScreen,
-                // for visual consistency across the app.
-                FilledIconButton(onClick = { playerViewModel.playPause() }) {
-                    AnimatedContent(
-                        targetState = isPlaying,
-                        transitionSpec = {
-                            fadeIn(tween(150)) + scaleIn(tween(150), initialScale = 0.8f) togetherWith
-                                    fadeOut(tween(100)) + scaleOut(tween(100), targetScale = 0.8f)
-                        },
-                        label = "mini_play_pause"
-                    ) { playing ->
-                        Icon(
-                            if (playing) Icons.Rounded.Pause else Icons.Rounded.PlayArrow,
-                            contentDescription = if (playing) "Pause" else "Play",
-                        )
-                    }
-                }
+
+                // Skip Next Button
                 IconButton(onClick = { playerViewModel.skipNext() }) {
-                    Icon(Icons.Rounded.SkipNext, "Next")
+                    Icon(
+                        imageVector = Icons.Rounded.SkipNext,
+                        contentDescription = "Next",
+                        modifier = Modifier.size(32.dp)
+                    )
                 }
             }
         }

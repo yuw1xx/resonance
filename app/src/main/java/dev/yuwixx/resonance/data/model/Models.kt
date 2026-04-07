@@ -129,8 +129,8 @@ enum class SmartQueueReason {
  */
 sealed class SleepTimer {
     data object Off : SleepTimer()
-    data class AfterTracks(val count: Int) : SleepTimer()
-    data class AfterMinutes(val minutes: Int, val startedAt: Long) : SleepTimer()
+    data class Tracks(val tracksLeft: Int) : SleepTimer()
+    data class Time(val minutes: Int, val startedAt: Long) : SleepTimer()
 }
 
 /**

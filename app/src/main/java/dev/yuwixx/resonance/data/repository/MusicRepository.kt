@@ -33,21 +33,37 @@ class MusicRepository @Inject constructor(
         songDao.getAllSongs(),
         prefs.artistDelimiter,
         prefs.excludedFolders,
-    ) { entities, delimiter, excluded ->
+        prefs.showFilenameAsTitle
+    ) { entities, delimiter, excluded, showFilename ->
         entities
             .filter { entity -> excluded.none { entity.folder.startsWith(it) } }
-            .map { it.toDomain(delimiter) }
+            .map { entity ->
+                val song = entity.toDomain(delimiter)
+                // Apply "Show Filename as Title" if title is unknown or preference is forced
+                if (showFilename && (song.title == "Unknown" || song.title.isBlank())) {
+                    val fallbackTitle = java.io.File(song.path).nameWithoutExtension
+                    song.copy(title = fallbackTitle)
+                } else song
+            }
     }.flowOn(Dispatchers.Default)
 
     val allFolders: Flow<List<String>> = songDao.getAllFolders()
 
     val allGenres: Flow<List<String>> = songDao.getAllGenres()
 
-    val allAlbums: Flow<List<Album>> = allSongs.map { songs ->
-        songs.groupBy { it.albumId }.map { (albumId, albumSongs) ->
+    val allAlbums: Flow<List<Album>> = combine(
+        allSongs,
+        prefs.groupByAlbumArtist,
+        prefs.ignoreArticles
+    ) { songs, groupByAlbumArtist, ignoreArticles ->
+        songs.groupBy {
+            // Group by Album Artist if enabled, otherwise fallback to strictly Album ID
+            if (groupByAlbumArtist && it.albumArtist.isNotBlank()) "${it.albumArtist}_${it.album}"
+            else it.albumId.toString()
+        }.map { (_, albumSongs) ->
             val first = albumSongs.first()
             Album(
-                id = albumId,
+                id = first.albumId,
                 title = first.album,
                 artist = first.albumArtist.ifEmpty { first.displayArtist },
                 year = first.year,
@@ -55,10 +71,15 @@ class MusicRepository @Inject constructor(
                 artworkUri = first.artworkUri,
                 songs = albumSongs.sortedWith(compareBy({ it.discNumber }, { it.trackNumber })),
             )
-        }.sortedBy { it.title }
+        }.sortedWith(Comparator { a, b ->
+            naturalCompare(a.title.stripArticles(ignoreArticles), b.title.stripArticles(ignoreArticles))
+        })
     }.flowOn(Dispatchers.Default)
 
-    val allArtists: Flow<List<Artist>> = allSongs.map { songs ->
+    val allArtists: Flow<List<Artist>> = combine(
+        allSongs,
+        prefs.ignoreArticles
+    ) { songs, ignoreArticles ->
         val artistMap = mutableMapOf<String, MutableList<Song>>()
         songs.forEach { song ->
             song.artists.forEach { artist ->
@@ -73,8 +94,22 @@ class MusicRepository @Inject constructor(
                 albumCount = albums.size,
                 songs = artistSongs,
             )
-        }.sortedWith(Comparator { a, b -> naturalCompare(a.name, b.name) })
+        }.sortedWith(Comparator { a, b ->
+            naturalCompare(a.name.stripArticles(ignoreArticles), b.name.stripArticles(ignoreArticles))
+        })
     }.flowOn(Dispatchers.Default)
+
+    // Helper to strip "The ", "A ", "An " for sorting purposes only
+    private fun String.stripArticles(ignore: Boolean): String {
+        if (!ignore) return this
+        val lower = this.lowercase()
+        return when {
+            lower.startsWith("the ") -> this.substring(4)
+            lower.startsWith("a ") -> this.substring(2)
+            lower.startsWith("an ") -> this.substring(3)
+            else -> this
+        }.trim()
+    }
 
     // FIX: Pass delimiter from prefs so user-configured delimiters are respected
     fun searchSongs(query: String): Flow<List<Song>> =
@@ -184,7 +219,11 @@ class MusicRepository @Inject constructor(
             // Previously, if the library was cleared, deleteRemovedSongs was never called
             // and stale entries would remain in the DB forever.
             songDao.upsertSongs(entities)
-            songDao.deleteRemovedSongs(foundIds)
+            if (foundIds.isEmpty()) {
+                songDao.deleteAllSongs()
+            } else {
+                songDao.deleteRemovedSongs(foundIds)
+            }
         } catch (e: Exception) {
             Log.e("MusicRepository", "Sync failed", e)
         }
@@ -193,6 +232,9 @@ class MusicRepository @Inject constructor(
     // ─── History ─────────────────────────────────────────────────────────────
 
     suspend fun recordListen(songId: Long, durationListened: Long, totalDuration: Long) {
+        // Fix 1: Abort completely if the user disabled tracking in Settings
+        if (!prefs.historyEnabled.first()) return
+
         val minSeconds = prefs.minListenSeconds.first() * 1000L
         val minPct = prefs.minListenPercentage.first()
         val pct = if (totalDuration > 0) durationListened.toFloat() / totalDuration else 0f
@@ -207,6 +249,12 @@ class MusicRepository @Inject constructor(
                 )
             )
             songDao.incrementListenCount(songId, System.currentTimeMillis())
+
+            val maxItems = prefs.maxHistoryItems.first()
+            // Note: Make sure your HistoryDao has a method like this:
+            // @Query("DELETE FROM history WHERE id NOT IN (SELECT id FROM history ORDER BY listenedAt DESC LIMIT :limit)")
+            // suspend fun trimHistory(limit: Int)
+            historyDao.trimHistory(maxItems)
         }
     }
 

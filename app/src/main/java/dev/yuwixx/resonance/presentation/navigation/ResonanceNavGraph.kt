@@ -1,5 +1,7 @@
 package dev.yuwixx.resonance.presentation.navigation
 
+import android.os.Build
+import androidx.annotation.RequiresApi
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.layout.*
@@ -35,6 +37,7 @@ sealed class Screen(val route: String) {
     data object Player        : Screen("player")
     data object Search        : Screen("search")
     data object Settings      : Screen("settings")
+    data object Licenses      : Screen("licenses")
     data object NowPlayingQueue : Screen("now_playing_queue")
     data object LyricsEditor  : Screen("lyrics_editor")
     data object AlbumDetail   : Screen("album_detail/{albumId}") {
@@ -68,8 +71,13 @@ val navItems = listOf(
 private val EaseOutCubic = CubicBezierEasing(0.33f, 1f, 0.68f, 1f)
 private val EaseInCubic  = CubicBezierEasing(0.32f, 0f, 0.67f, 0f)
 
+@RequiresApi(Build.VERSION_CODES.VANILLA_ICE_CREAM)
 @Composable
-fun ResonanceNavGraph(playerViewModel: PlayerViewModel) {
+fun ResonanceNavGraph(
+    playerViewModel: PlayerViewModel,
+    receiveUri: android.net.Uri? = null,
+    onReceiveDismiss: () -> Unit = {},
+) {
     val navController = rememberNavController()
     val libraryViewModel: LibraryViewModel = hiltViewModel()
     val isFirstRun by libraryViewModel.prefs.isFirstRun.collectAsState(initial = null)
@@ -78,6 +86,8 @@ fun ResonanceNavGraph(playerViewModel: PlayerViewModel) {
     val currentSong by playerViewModel.currentSong.collectAsState()
     val isPlaying by playerViewModel.isPlaying.collectAsState()
     val allPlaylists by libraryViewModel.allPlaylists.collectAsState()
+
+    val miniPlayerStyle by playerViewModel.miniPlayerStyle.collectAsState()
 
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentDestination = navBackStackEntry?.destination
@@ -109,6 +119,7 @@ fun ResonanceNavGraph(playerViewModel: PlayerViewModel) {
                     ) {
                         MiniPlayer(
                             playerViewModel = playerViewModel,
+                            style = miniPlayerStyle,
                             onClick = navigateToPlayer,
                         )
                     }
@@ -356,9 +367,14 @@ fun ResonanceNavGraph(playerViewModel: PlayerViewModel) {
                 val settingsViewModel: SettingsViewModel = hiltViewModel()
                 SettingsScreen(
                     onBack = { navController.popBackStack() },
+                    onNavigateToLicenses = { navController.navigate(Screen.Licenses.route) },
                     libraryViewModel = libraryViewModel,
                     settingsViewModel = settingsViewModel,
                 )
+            }
+
+            composable(Screen.Licenses.route) {
+                LicensesScreen(onBack = { navController.popBackStack() })
             }
 
             composable(Screen.LyricsEditor.route) {
@@ -368,6 +384,18 @@ fun ResonanceNavGraph(playerViewModel: PlayerViewModel) {
                     onBack = { navController.popBackStack() },
                 )
             }
+        }
+
+        // ── Receive sheet — triggered by resonance://receive deep link ───────────
+        receiveUri?.let { uri ->
+            ReceiveSheet(
+                uri       = uri,
+                onDismiss = onReceiveDismiss,
+                onPlayNow = { song ->
+                    playerViewModel.play(listOf(song), 0)
+                    navController.navigate(Screen.Player.route)
+                },
+            )
         }
     }
 }

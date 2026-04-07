@@ -10,6 +10,8 @@ kotlin = "2.0.21"
 composeBom = "2024.11.00"
 ksp = "2.0.21-1.0.28"
 hilt = "2.52"
+licenseReport = "3.1.2"
+kotlinSerialization = "2.0.21"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
@@ -35,3 +37,5 @@ kotlin-android = { id = "org.jetbrains.kotlin.android", version.ref = "kotlin" }
 kotlin-compose = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }
 ksp   = { id = "com.google.devtools.ksp", version.ref = "ksp"  }
 hilt  = { id = "com.google.dagger.hilt.android", version.ref = "hilt" }
+license-report = { id = "com.github.jk1.dependency-license-report", version.ref = "licenseReport" }
+kotlin-serialization = { id = "org.jetbrains.kotlin.plugin.serialization", version.ref = "kotlinSerialization" }

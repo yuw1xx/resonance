@@ -5,6 +5,27 @@ import com.squareup.moshi.JsonClass
 import retrofit2.http.GET
 import retrofit2.http.Query
 
+// ─── GitHub Update API ──────────────────────────────────────────────────────
+
+interface GitHubApi {
+    @GET("repos/yuw1xx/resonance/releases/latest")
+    suspend fun getLatestRelease(): GitHubRelease
+}
+
+@JsonClass(generateAdapter = true)
+data class GitHubRelease(
+    @Json(name = "tag_name") val tagName: String,
+    val name: String,
+    val body: String?,
+    val assets: List<GitHubAsset>
+)
+
+@JsonClass(generateAdapter = true)
+data class GitHubAsset(
+    val name: String,
+    @Json(name = "browser_download_url") val browserDownloadUrl: String
+)
+
 // ─── LRCLIB API ─────────────────────────────────────────────────────────────
 
 interface LrclibApi {
