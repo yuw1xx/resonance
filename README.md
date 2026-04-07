@@ -1,6 +1,7 @@
 <div align="center">
   <h1>Resonance</h1>
   <p>A modern, feature-rich local music player for <b>Android 15 and newer</b></p>
+  <p>Inspired by <a href="https://github.com/namidaco/namida">Namida</a>, <a href="https://github.com/theovilardo/PixelPlayer">Pixel Player</a> & <a href="https://github.com/FoedusProgramme/Gramophone">Gramphone</a> 💜</p>
 
   ![Android](https://img.shields.io/badge/Android-API%2035+-3DDC84?logo=android&logoColor=white)
   ![Kotlin](https://img.shields.io/badge/Kotlin-2.0-7F52FF?logo=kotlin&logoColor=white)
