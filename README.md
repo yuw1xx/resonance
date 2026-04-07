@@ -20,6 +20,10 @@ Resonance is a powerful local music player built entirely with Kotlin and Jetpac
 | :---: | :---: | :---: | :---: |
 | <img src="screenshots/Screenshot_20260407-001502.png" width="200"> | <img src="screenshots/Screenshot_20260407-001514.png" width="200"> | <img src="screenshots/Screenshot_20260407-001534.png" width="200"> | <img src="screenshots/Screenshot_20260407-001546.png" width="200"> |
 
+| Playlist | Resonance Share | Search | Lyrics |
+| :---: | :---: | :---: | :---: |
+| <img src="screenshots/Screenshot_20260407-230040.png" width="200"> | <img src="screenshots/Screenshot_20260407-230052.png" width="200"> | <img src="screenshots/Screenshot_20260407-230127.png" width="200"> | <img src="screenshots/Screenshot_20260407-230239.png" width="200"> |
+
 ## Features
 
 ### Playback
