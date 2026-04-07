@@ -16,7 +16,7 @@ Resonance is a powerful local music player built entirely with Kotlin and Jetpac
 
 ## Screenshots
 
-| Home tab | Player | Settings | Artist page |
+| Home tab | Player | Settings | Artist tab |
 | :---: | :---: | :---: | :---: |
 | <img src="screenshots/Screenshot_20260407-001502.png" width="200"> | <img src="screenshots/Screenshot_20260407-001514.png" width="200"> | <img src="screenshots/Screenshot_20260407-001534.png" width="200"> | <img src="screenshots/Screenshot_20260407-001546.png" width="200"> |
 
