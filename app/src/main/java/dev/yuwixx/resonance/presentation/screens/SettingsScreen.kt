@@ -177,7 +177,7 @@ fun SettingsScreen(
             item {
                 val context = LocalContext.current
                 val pkgInfo = context.packageManager.getPackageInfo(context.packageName, 0)
-                val versionName = pkgInfo.versionName ?: "1.0.0"
+                val versionName = pkgInfo.versionName ?: "1.1"
 
                 SettingsTextItem(
                     title = "Check Now",
