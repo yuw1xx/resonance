@@ -1,6 +1,6 @@
 <div align="center">
   <h1>Resonance</h1>
-  <p>A modern, feature-rich local music player for Android</p>
+  <p>A modern, feature-rich local music player for <b>Android 15 and newer</b></p>
 
   ![Android](https://img.shields.io/badge/Android-API%2035+-3DDC84?logo=android&logoColor=white)
   ![Kotlin](https://img.shields.io/badge/Kotlin-2.0-7F52FF?logo=kotlin&logoColor=white)
@@ -23,55 +23,55 @@ Resonance is a powerful local music player built entirely with Kotlin and Jetpac
 ## Features
 
 ### Playback
-- **Gapless playback** — seamless transitions between tracks using ExoPlayer's native gapless support
-- **Crossfade** — configurable crossfade duration between songs
-- **ReplayGain 2.0** — per-track and per-album volume normalization with configurable preamp
-- **Skip silence** — automatically skip silent passages
-- **Playback speed & pitch control** — independent speed and pitch adjustment
-- **Smart Shuffle** — history-aware shuffle that avoids repeating recently played tracks
-- **Sleep timer** — stop after a set number of tracks or minutes
+- [x] **Gapless playback** — seamless transitions between tracks using ExoPlayer's native gapless support
+- [x] **Crossfade** — configurable crossfade duration between songs
+- [x] **ReplayGain 2.0** — per-track and per-album volume normalization with configurable preamp
+- [x] **Skip silence** — automatically skip silent passages
+- [x] **Playback speed & pitch control** — independent speed and pitch adjustment
+- [x] **Smart Shuffle** — history-aware shuffle that avoids repeating recently played tracks
+- [x] **Sleep timer** — stop after a set number of tracks or minutes
 
 ### Library
-- **Full MediaStore integration** — automatically detects all local audio files
-- **Configurable artist delimiters** — split multi-artist tags the way you want
-- **Folder browsing** — navigate your music by directory
-- **Excluded folders** — hide folders from the library
-- **Auto-scan** — scheduled background library refresh
-- **Sort & filter** — sort by title, artist, album, date added, duration, play count, and more
-- **Persistent queue** — queue survives app restarts
+- [x] **Full MediaStore integration** — automatically detects all local audio files
+- [ ] **Configurable artist delimiters** — split multi-artist tags the way you want
+- [ ] **Folder browsing** — navigate your music by directory
+- [ ] **Excluded folders** — hide folders from the library
+- [x] **Auto-scan** — scheduled background library refresh
+- [x] **Sort & filter** — sort by title, artist, album, date added, duration, play count, and more
+- [x] **Persistent queue** — queue survives app restarts
 
 ### Lyrics
-- **Synced lyrics** — LRC, TTML, and word-level karaoke support
-- **Embedded lyrics** — reads lyrics from ID3 tags
-- **LRCLib integration** — automatic online lyrics fetching
-- **Lyrics editor** — edit and save lyrics directly in the app
+- [x] **Synced lyrics** — LRC, TTML, and word-level karaoke support
+- [x] **Embedded lyrics** — reads lyrics from ID3 tags
+- [x] **LRCLib integration** — automatic online lyrics fetching
+- [x] **Lyrics editor** — edit and save lyrics directly in the app
 
 ### Metadata & Artwork
-- **Tag editor** — edit title, artist, album, genre, year, track number, and more
-- **Artwork fetching** — automatic album art from MediaStore and online sources
-- **Artist images** — artist photos fetched from the Deezer API
-- **Waveform seekbar** — real-time waveform visualization extracted from the audio file
+- [ ] **Tag editor** — edit title, artist, album, genre, year, track number, and more
+- [x] **Artwork fetching** — automatic album art from MediaStore and online sources
+- [x] **Artist images** — artist photos fetched from the Deezer API
+- [x] **Waveform seekbar** — real-time waveform visualization extracted from the audio file
 
 ### Last.fm
-- **Scrobbling** — automatic track scrobbling with configurable minimum listen threshold
-- **Now Playing** — real-time "now playing" updates
-- **Loved tracks** — sync liked songs with your Last.fm loved tracks
+- [x] **Scrobbling** — automatic track scrobbling with configurable minimum listen threshold
+- [x] **Now Playing** — real-time "now playing" updates
+- [x] **Loved tracks** — sync liked songs with your Last.fm loved tracks
 
 ### UI & Customization
-- **Material 3** — full Material You dynamic color support
-- **Preset colors** — choose from a set of curated accent colors
-- **Dark / Light / System theme** — follows system or manual override
-- **Blur artwork background** — blurred album art as the player background
-- **Artwork animation** — rotating vinyl / artwork animation while playing
-- **Configurable corner radius** — round or sharp UI corners
-- **Mini player styles** — choose your preferred mini player layout
-- **Player layouts** — multiple full-screen player designs
-- **Haptic feedback** — tactile response on controls
+- [x] **Material 3** — full Material You dynamic color support
+- [x] **Preset colors** — choose from a set of curated accent colors
+- [x] **Dark / Light / System theme** — follows system or manual override
+- [x] **Blur artwork background** — blurred album art as the player background
+- [x] **Artwork animation** — rotating vinyl / artwork animation while playing
+- [x] **Configurable corner radius** — round or sharp UI corners
+- [x] **Mini player styles** — choose your preferred mini player layout
+- [x] **Player layouts** — multiple full-screen player designs
+- [x] **Haptic feedback** — tactile response on controls
 
 ### Home Screen Widget
-- **Now-playing widget** — displays the current song title and artist on your home screen
-- **Playback controls** — play/pause and skip directly from the widget
-- **Live updates** — widget stays in sync with the player in real time
+- [x] **Now-playing widget** — displays the current song title and artist on your home screen
+- [x] **Playback controls** — play/pause and skip directly from the widget
+- [x] **Live updates** — widget stays in sync with the player in real time
 
 ## Tech Stack
 
