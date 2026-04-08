@@ -330,6 +330,41 @@ class MusicRepository @Inject constructor(
         SmartQueueResult(songs = result, reason = reason)
     }
 
+    // ─── Tag Editor ──────────────────────────────────────────────────────────
+
+    suspend fun updateSongTags(songId: Long, title: String, artist: String, album: String, genre: String, year: Int, trackNumber: Int) = withContext(Dispatchers.IO) {
+        val entity = songDao.getSongById(songId) ?: return@withContext
+        val updated = entity.copy(
+            title = title,
+            artist = artist,
+            album = album,
+            genre = genre,
+            year = year,
+            trackNumber = trackNumber
+        )
+
+        // Update Database instantly for snappy UI
+        songDao.upsertSongs(listOf(updated))
+
+        // Attempt to update the physical file's ID3 tags
+        try {
+            val file = java.io.File(entity.path)
+            if (file.exists() && file.canWrite()) {
+                val audioFile = org.jaudiotagger.audio.AudioFileIO.read(file)
+                val tag = audioFile.tagOrCreateAndSetDefault
+                tag.setField(org.jaudiotagger.tag.FieldKey.TITLE, title)
+                tag.setField(org.jaudiotagger.tag.FieldKey.ARTIST, artist)
+                tag.setField(org.jaudiotagger.tag.FieldKey.ALBUM, album)
+                tag.setField(org.jaudiotagger.tag.FieldKey.GENRE, genre)
+                tag.setField(org.jaudiotagger.tag.FieldKey.YEAR, year.toString())
+                tag.setField(org.jaudiotagger.tag.FieldKey.TRACK, trackNumber.toString())
+                org.jaudiotagger.audio.AudioFileIO.write(audioFile)
+            }
+        } catch (e: Exception) {
+            Log.e("MusicRepository", "Failed to write physical ID3 tag (Likely Android 11+ Scoped Storage restriction). Database updated successfully.", e)
+        }
+    }
+
     // ─── Natural sort ────────────────────────────────────────────────────────
 
     private fun naturalCompare(a: String, b: String): Int {

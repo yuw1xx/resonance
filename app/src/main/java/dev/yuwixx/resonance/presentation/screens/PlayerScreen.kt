@@ -57,12 +57,15 @@ fun PlayerScreen(
 ) {
     val currentSong by playerViewModel.currentSong.collectAsState()
     val isPlaying by playerViewModel.isPlaying.collectAsState()
-    val positionMs by playerViewModel.positionMs.collectAsState()
+
+    // State Hoisting Optimization - Deferred position reading!
+    val positionProvider = remember { { playerViewModel.positionMs.value } }
+
     val durationMs by playerViewModel.durationMs.collectAsState()
     val repeatMode by playerViewModel.repeatMode.collectAsState()
     val shuffleEnabled by playerViewModel.shuffleEnabled.collectAsState()
     val waveformData by playerViewModel.waveformData.collectAsState()
-    val showWaveform by playerViewModel.showWaveform.collectAsState()
+    val seekbarStyle by playerViewModel.seekbarStyle.collectAsState() // <--- CHANGED
     val blurBackground by playerViewModel.blurBackground.collectAsState()
     val blurStrength by playerViewModel.blurStrength.collectAsState()
     val artworkAnimation by playerViewModel.artworkAnimation.collectAsState()
@@ -108,11 +111,10 @@ fun PlayerScreen(
 
             Spacer(modifier = Modifier.weight(1f))
 
-            // Dynamically adjust artwork size based on the chosen layout
             val artworkPadding = when (playerLayout) {
                 "ARTWORK_BIG" -> 12.dp
                 "LYRICS_FOCUS" -> 64.dp
-                else -> 28.dp // STANDARD
+                else -> 28.dp
             }
 
             ArtworkPanel(
@@ -129,12 +131,12 @@ fun PlayerScreen(
             PlaybackControls(
                 song = song,
                 isPlaying = isPlaying,
-                positionMs = positionMs,
+                positionProvider = positionProvider,
                 durationMs = durationMs,
                 repeatMode = repeatMode,
                 shuffleEnabled = shuffleEnabled,
                 waveformData = waveformData,
-                showWaveform = showWaveform,
+                seekbarStyle = seekbarStyle, // <--- CHANGED
                 isTrackLoved = isTrackLoved,
                 onPlayPause = { playerViewModel.playPause() },
                 onNext = { playerViewModel.skipNext() },
@@ -147,7 +149,7 @@ fun PlayerScreen(
 
             PlayerFooter(
                 lyricsResult = lyricsResult,
-                showLyricsButton = showLyricsButton, // Pass the setting down
+                showLyricsButton = showLyricsButton,
                 onLyricsClick = { showLyricsOverlay = true },
                 onLyricsEdit = onLyricsEdit,
                 onMoreOptions = { showOptionsSheet = true },
@@ -177,14 +179,13 @@ fun PlayerScreen(
                 LyricsOverlay(
                     lyrics = lines,
                     activeLineIndex = activeLyricIndex,
-                    fontScale = lyricsFontScale, // Pass the setting down
+                    fontScale = lyricsFontScale,
                     onSeek = { playerViewModel.seekTo(it) },
                     onClose = { showLyricsOverlay = false },
                 )
             }
         }
 
-        // Dialogs & Bottom Sheets
         if (showSleepTimerDialog) {
             SleepTimerDialog(
                 currentTimer = sleepTimer,
@@ -326,12 +327,12 @@ private fun ArtworkPanel(
 private fun PlaybackControls(
     song: Song,
     isPlaying: Boolean,
-    positionMs: Long,
+    positionProvider: () -> Long,
     durationMs: Long,
     repeatMode: RepeatMode,
     shuffleEnabled: Boolean,
     waveformData: dev.yuwixx.resonance.data.model.WaveformData?,
-    showWaveform: Boolean,
+    seekbarStyle: String,
     isTrackLoved: Boolean,
     onPlayPause: () -> Unit,
     onNext: () -> Unit,
@@ -341,6 +342,8 @@ private fun PlaybackControls(
     onShuffleToggle: () -> Unit,
     onLoveTrack: () -> Unit,
 ) {
+    val positionMs = positionProvider()
+
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -404,28 +407,43 @@ private fun PlaybackControls(
 
         Spacer(modifier = Modifier.height(24.dp))
 
-        if (showWaveform) {
-            WaveformSeekbar(
-                waveformData = waveformData,
-                positionMs = positionMs,
-                durationMs = durationMs,
-                onSeek = onSeek,
-                isPlaying = isPlaying,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(56.dp),
-            )
-        } else {
-            Slider(
-                value = positionMs.toFloat(),
-                onValueChange = { onSeek(it.toLong()) },
-                valueRange = 0f..durationMs.toFloat().coerceAtLeast(1f),
-                colors = SliderDefaults.colors(
-                    thumbColor = MaterialTheme.colorScheme.primary,
-                    activeTrackColor = MaterialTheme.colorScheme.primary,
-                ),
-                modifier = Modifier.fillMaxWidth(),
-            )
+        // <--- CHANGED: Render appropriate seekbar
+        when (seekbarStyle) {
+            "WAVEFORM" -> {
+                WaveformSeekbar(
+                    waveformData = waveformData,
+                    positionProvider = positionProvider,
+                    durationMs = durationMs,
+                    onSeek = onSeek,
+                    isPlaying = isPlaying,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(56.dp),
+                )
+            }
+            "SQUIGGLY" -> {
+                SquigglySeekbar(
+                    positionProvider = positionProvider,
+                    durationMs = durationMs,
+                    onSeek = onSeek,
+                    isPlaying = isPlaying,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(56.dp),
+                )
+            }
+            else -> {
+                Slider(
+                    value = positionMs.toFloat(),
+                    onValueChange = { onSeek(it.toLong()) },
+                    valueRange = 0f..durationMs.toFloat().coerceAtLeast(1f),
+                    colors = SliderDefaults.colors(
+                        thumbColor = MaterialTheme.colorScheme.primary,
+                        activeTrackColor = MaterialTheme.colorScheme.primary,
+                    ),
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
         }
 
         Row(
@@ -541,9 +559,11 @@ private fun PlayerFooter(
 
         if (showLyricsButton) {
             val hasLyrics = lyricsResult !is LyricsResult.NotFound
+            val isLoading = lyricsResult is LyricsResult.Loading
+
             Surface(
                 shape = MaterialTheme.shapes.medium,
-                color = if (hasLyrics)
+                color = if (hasLyrics && !isLoading)
                     MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.7f)
                 else Color.Transparent,
                 modifier = Modifier
@@ -554,13 +574,21 @@ private fun PlayerFooter(
                     ),
             ) {
                 Box(contentAlignment = Alignment.Center) {
-                    Icon(
-                        imageVector = Icons.Rounded.MicExternalOn,
-                        contentDescription = "Lyrics — tap to view, long-press to edit",
-                        modifier = Modifier.size(22.dp),
-                        tint = if (hasLyrics) MaterialTheme.colorScheme.onSecondaryContainer
-                        else MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
+                    if (isLoading) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(20.dp),
+                            strokeWidth = 2.dp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    } else {
+                        Icon(
+                            imageVector = if (hasLyrics) Icons.Rounded.MicExternalOn else Icons.Rounded.MicExternalOff,
+                            contentDescription = "Lyrics — tap to view, long-press to edit",
+                            modifier = Modifier.size(22.dp),
+                            tint = if (hasLyrics) MaterialTheme.colorScheme.onSecondaryContainer
+                            else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f),
+                        )
+                    }
                 }
             }
         } else {

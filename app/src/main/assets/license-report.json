@@ -1213,6 +1213,13 @@
             "moduleLicenseUrl": "http://www.apache.org/licenses/LICENSE-2.0.txt"
         },
         {
+            "moduleName": "net.jthink:jaudiotagger",
+            "moduleUrl": "https://bitbucket.org/ijabz/jaudiotagger",
+            "moduleVersion": "3.0.1",
+            "moduleLicense": "LGPL",
+            "moduleLicenseUrl": "http://www.gnu.org/copyleft/lesser.html"
+        },
+        {
             "moduleName": "org.checkerframework:checker-qual",
             "moduleUrl": "https://checkerframework.org/",
             "moduleVersion": "3.43.0",

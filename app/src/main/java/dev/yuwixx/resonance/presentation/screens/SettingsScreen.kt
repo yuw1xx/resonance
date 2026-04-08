@@ -1,5 +1,6 @@
 package dev.yuwixx.resonance.presentation.screens
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.*
@@ -15,6 +16,7 @@ import androidx.compose.material.icons.automirrored.rounded.OpenInNew
 import androidx.compose.material.icons.rounded.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.*
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
@@ -34,6 +36,21 @@ import dev.yuwixx.resonance.presentation.viewmodel.SettingsViewModel
 import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
 
+enum class SettingsCategory(val title: String, val icon: ImageVector) {
+    Main("Settings", Icons.Rounded.Settings),
+    Updates("Updates", Icons.Rounded.SystemUpdate),
+    Appearance("Appearance", Icons.Rounded.Palette),
+    Player("Player", Icons.Rounded.MusicNote),
+    Playback("Playback", Icons.Rounded.PlayCircle),
+    Audio("Audio", Icons.Rounded.GraphicEq),
+    Library("Library", Icons.Rounded.LibraryMusic),
+    LastFm("Last.fm Scrobbling", Icons.Rounded.Radio),
+    Notification("Notification", Icons.Rounded.Notifications),
+    History("Play History", Icons.Rounded.History),
+    Data("Data", Icons.Rounded.Storage),
+    About("About", Icons.Rounded.Info)
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettingsScreen(
@@ -46,6 +63,13 @@ fun SettingsScreen(
     val prefs = libraryViewModel.prefs
     val snackbarHostState = remember { SnackbarHostState() }
 
+    var currentCategory by rememberSaveable { mutableStateOf(SettingsCategory.Main) }
+
+    // Intercept system back button to return to the main settings menu first
+    BackHandler(enabled = currentCategory != SettingsCategory.Main) {
+        currentCategory = SettingsCategory.Main
+    }
+
     // Updates
     val updateFreq by settingsViewModel.updateFrequency.collectAsState()
 
@@ -54,7 +78,7 @@ fun SettingsScreen(
     val presetColorInt by prefs.presetColor.collectAsState(initial = null)
     val darkTheme by prefs.darkTheme.collectAsState(initial = "SYSTEM")
     val cornerRadius by prefs.cornerRadius.collectAsState(initial = 28)
-    val showWaveform by prefs.showWaveformSeekbar.collectAsState(initial = true)
+    val seekbarStyle by prefs.seekbarStyle.collectAsState(initial = "WAVEFORM")
     val blurBackground by prefs.blurArtworkBackground.collectAsState(initial = true)
     val blurStrength by prefs.blurStrength.collectAsState(initial = 0.3f)
     val artworkAnimation by prefs.artworkAnimation.collectAsState(initial = true)
@@ -115,9 +139,14 @@ fun SettingsScreen(
     Scaffold(
         topBar = {
             LargeTopAppBar(
-                title = { Text("Settings", fontWeight = FontWeight.Bold) },
+                title = { Text(currentCategory.title, fontWeight = FontWeight.Bold) },
                 navigationIcon = {
-                    IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Rounded.ArrowBack, "Back") }
+                    IconButton(onClick = {
+                        if (currentCategory == SettingsCategory.Main) onBack()
+                        else currentCategory = SettingsCategory.Main
+                    }) {
+                        Icon(Icons.AutoMirrored.Rounded.ArrowBack, "Back")
+                    }
                 },
                 colors = TopAppBarDefaults.largeTopAppBarColors(
                     containerColor = MaterialTheme.colorScheme.surfaceContainer,
@@ -126,541 +155,575 @@ fun SettingsScreen(
         },
         snackbarHost = { SnackbarHost(snackbarHostState) },
     ) { padding ->
-        LazyColumn(
-            contentPadding = PaddingValues(
-                top = padding.calculateTopPadding(),
-                bottom = padding.calculateBottomPadding() + 32.dp,
-            ),
-        ) {
-
-            // ─── Updates ──────────────────────────────────────────────────────
-            settingsSectionHeader("Updates", Icons.Rounded.SystemUpdate)
-
-            item {
-                var showDisableWarning by remember { mutableStateOf(false) }
-
-                SegmentedSettingsItem(
-                    title = "Check for Updates",
-                    options = listOf("Launch" to "LAUNCH", "Daily" to "DAILY", "Weekly" to "WEEKLY", "Off" to "DISABLED"),
-                    selected = updateFreq,
-                    onSelect = {
-                        if (it == "DISABLED") {
-                            showDisableWarning = true
-                        } else {
-                            settingsViewModel.setUpdateFrequency(it)
-                        }
-                    },
-                )
-
-                if (showDisableWarning) {
-                    AlertDialog(
-                        onDismissRequest = { showDisableWarning = false },
-                        icon = { Icon(Icons.Rounded.Warning, null, tint = MaterialTheme.colorScheme.error) },
-                        title = { Text("Disable Updates?") },
-                        text = { Text("It is highly recommended to keep update checks enabled so you don't miss bug fixes and new features.\n\nAre you sure you want to disable automatic checks?") },
-                        confirmButton = {
-                            Button(
-                                onClick = {
-                                    settingsViewModel.setUpdateFrequency("DISABLED")
-                                    showDisableWarning = false
-                                },
-                                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
-                            ) { Text("Disable") }
-                        },
-                        dismissButton = {
-                            TextButton(onClick = { showDisableWarning = false }) { Text("Keep Enabled") }
-                        }
-                    )
+        AnimatedContent(
+            targetState = currentCategory,
+            transitionSpec = {
+                if (targetState != SettingsCategory.Main) {
+                    slideInHorizontally(tween(300)) { it } + fadeIn(tween(300)) togetherWith
+                            slideOutHorizontally(tween(300)) { -it / 3 } + fadeOut(tween(300))
+                } else {
+                    slideInHorizontally(tween(300)) { -it / 3 } + fadeIn(tween(300)) togetherWith
+                            slideOutHorizontally(tween(300)) { it } + fadeOut(tween(300))
                 }
-            }
-
-            item {
-                val context = LocalContext.current
-                val pkgInfo = context.packageManager.getPackageInfo(context.packageName, 0)
-                val versionName = pkgInfo.versionName ?: "1.1"
-
-                SettingsTextItem(
-                    title = "Check Now",
-                    subtitle = "Current version: v$versionName",
-                    icon = Icons.Rounded.Update,
-                    onClick = { settingsViewModel.checkForUpdates(versionName, isManual = true) }
-                )
-            }
-
-            // ─── Appearance ───────────────────────────────────────────────────
-            settingsSectionHeader("Appearance", Icons.Rounded.Palette)
-
-            settingsToggle("System Dynamic Color", "Use Android 12+ wallpaper colours", dynamicColor) {
-                scope.launch { prefs.setDynamicColorEnabled(it) }
-            }
-
-            if (!dynamicColor) {
-                item {
-                    ThemeColorPicker(
-                        current = presetColorInt,
-                        onPick = { scope.launch { prefs.setPresetColor(it) } }
-                    )
-                }
-            }
-
-            item {
-                SegmentedSettingsItem(
-                    title = "Dark Theme",
-                    options = listOf("System" to "SYSTEM", "Light" to "LIGHT", "Dark" to "DARK"),
-                    selected = darkTheme,
-                    onSelect = { scope.launch { prefs.setDarkTheme(it) } },
-                )
-            }
-
-            settingsToggle("Waveform Seekbar", "Material You 3 wave-style progress bar", showWaveform) {
-                scope.launch { prefs.setShowWaveformSeekbar(it) }
-            }
-            settingsToggle("Blur Background", "Artwork-tinted blurred backdrop in player", blurBackground) {
-                scope.launch { prefs.setBlurArtworkBackground(it) }
-            }
-            if (blurBackground) {
-                item {
-                    SettingsSliderItem(
-                        title = "Blur Intensity",
-                        value = blurStrength,
-                        range = 0.1f..0.7f,
-                        label = "${(blurStrength * 100).toInt()}%",
-                        onValueChange = { scope.launch { prefs.setBlurStrength(it) } },
-                    )
-                }
-            }
-            settingsToggle("Artwork Animation", "Scale artwork on play/pause", artworkAnimation) {
-                scope.launch { prefs.setArtworkAnimation(it) }
-            }
-            settingsToggle("Haptic Feedback", "Vibrate on seek and long-press", hapticFeedback) {
-                scope.launch { prefs.setHapticFeedback(it) }
-            }
-            settingsToggle("Show Bitrate & Format", "Display audio quality badge in player", showBitrateInfo) {
-                scope.launch { prefs.setShowBitrateInfo(it) }
-            }
-            item {
-                SettingsSliderItem(
-                    title = "Corner Radius",
-                    value = cornerRadius.toFloat(),
-                    range = 0f..40f,
-                    label = "${cornerRadius}dp",
-                    steps = 40,
-                    onValueChange = { scope.launch { prefs.setCornerRadius(it.toInt()) } },
-                )
-            }
-            item {
-                SettingsSliderItem(
-                    title = "Album Grid Columns",
-                    value = albumGridCols.toFloat(),
-                    range = 2f..4f,
-                    label = "$albumGridCols columns",
-                    steps = 1,
-                    onValueChange = { scope.launch { prefs.setAlbumGridColumns(it.toInt()) } },
-                )
-            }
-
-            // ─── Player ───────────────────────────────────────────────────────
-            settingsSectionHeader("Player", Icons.Rounded.MusicNote)
-
-            item {
-                SegmentedSettingsItem(
-                    title = "Player Layout",
-                    options = listOf("Standard" to "STANDARD", "Big Artwork" to "ARTWORK_BIG", "Lyrics Focus" to "LYRICS_FOCUS"),
-                    selected = playerLayout,
-                    onSelect = { scope.launch { prefs.setPlayerLayout(it) } },
-                )
-            }
-            item {
-                SegmentedSettingsItem(
-                    title = "Mini Player Style",
-                    options = listOf("Compact" to "COMPACT", "Card" to "CARD", "Floating" to "FLOATING"),
-                    selected = miniPlayerStyle,
-                    onSelect = { scope.launch { prefs.setMiniPlayerStyle(it) } },
-                )
-            }
-            settingsToggle("Show Lyrics Button", "Display lyrics shortcut in player footer", showLyricsBtn) {
-                scope.launch { prefs.setShowLyricsButton(it) }
-            }
-            item {
-                SettingsSliderItem(
-                    title = "Lyrics Font Size",
-                    value = lyricsFontScale,
-                    range = 0.50f..1.75f,
-                    label = "${(lyricsFontScale * 100).toInt()}%",
-                    steps = 4,
-                    onValueChange = { newValue ->
-                        val step = 0.25f
-                        val rounded = (newValue / step).roundToInt() * step
-                        scope.launch { prefs.setLyricsFontScale(rounded.coerceIn(0.50f, 1.75f)) }
-                    },
-                )
-            }
-
-            // ─── Playback ─────────────────────────────────────────────────────
-            settingsSectionHeader("Playback", Icons.Rounded.PlayCircle)
-
-            settingsToggle("Gapless Playback", "Smooth transition between tracks", gapless) {
-                scope.launch { prefs.setGaplessEnabled(it) }
-            }
-            settingsToggle("Skip Silence", "Automatically skip silent parts of tracks", skipSilence) {
-                scope.launch { prefs.setSkipSilence(it) }
-            }
-            item {
-                SettingsSliderItem(
-                    title = "Crossfade Duration",
-                    value = crossfadeMs.toFloat(),
-                    range = 0f..10000f,
-                    label = if (crossfadeMs == 0) "Disabled" else "${crossfadeMs / 1000}s",
-                    steps = 10,
-                    onValueChange = { newValue ->
-                        val step = 1000f
-                        val rounded = (newValue / step).roundToInt() * step
-                        scope.launch { prefs.setCrossfadeDuration(rounded.toInt()) }
-                    },
-                )
-            }
-            item {
-                SettingsSliderItem(
-                    title = "Playback Speed",
-                    value = playbackSpeed,
-                    range = 0.5f..2.0f,
-                    label = "${playbackSpeed}x",
-                    steps = 6,
-                    onValueChange = { newValue ->
-                        val step = 0.25f
-                        val rounded = (newValue / step).roundToInt() * step
-                        scope.launch { prefs.setPlaybackSpeed(rounded.coerceIn(0.5f, 2.0f)) }
-                    },
-                )
-            }
-            item {
-                SettingsSliderItem(
-                    title = "Playback Pitch",
-                    value = playbackPitch,
-                    range = 0.5f..2.0f,
-                    label = "${playbackPitch}x",
-                    steps = 6,
-                    onValueChange = { newValue ->
-                        val step = 0.25f
-                        val rounded = (newValue / step).roundToInt() * step
-                        scope.launch { prefs.setPlaybackPitch(rounded.coerceIn(0.5f, 2.0f)) }
-                    },
-                )
-            }
-            settingsToggle("Resume on Headphones", "Continue playback when headphones are connected", resumeOnHeadphones) {
-                scope.launch { prefs.setResumeOnHeadphones(it) }
-            }
-            settingsToggle("Pause on Disconnect", "Stop playback when headphones are removed", pauseOnHeadphonesOut) {
-                scope.launch { prefs.setPauseOnHeadphonesOut(it) }
-            }
-            settingsToggle("Audio Ducking", "Lower volume when other apps play sound", duckAudio) {
-                scope.launch { prefs.setDuckAudioOnFocusLoss(it) }
-            }
-            settingsToggle("Smart Shuffle", "Prioritise higher rated and recent tracks", smartShuffle) {
-                scope.launch { prefs.setSmartShuffleEnabled(it) }
-            }
-
-            // ─── Audio ────────────────────────────────────────────────────────
-            settingsSectionHeader("Audio", Icons.Rounded.GraphicEq)
-
-            item {
-                SegmentedSettingsItem(
-                    title = "ReplayGain Mode",
-                    options = listOf("Off" to "OFF", "Track" to "TRACK", "Album" to "ALBUM"),
-                    selected = replayGainMode,
-                    onSelect = { scope.launch { prefs.setReplayGainMode(it) } },
-                )
-            }
-            item {
-                SettingsSliderItem(
-                    title = "ReplayGain Preamp",
-                    value = replayGainPreamp,
-                    range = -15f..15f,
-                    label = when {
-                        replayGainPreamp == 0f -> "0 dB"
-                        replayGainPreamp > 0 -> "+${replayGainPreamp.toInt()} dB"
-                        else -> "${replayGainPreamp.toInt()} dB"
-                    },
-                    steps = 30,
-                    onValueChange = { scope.launch { prefs.setReplayGainPreamp(it) } },
-                )
-            }
-            settingsToggle("Volume Normalisation", "Equalise loudness across all tracks", volumeNorm) {
-                scope.launch { prefs.setVolumeNormalization(it) }
-            }
-
-            // ─── Library ──────────────────────────────────────────────────────
-            settingsSectionHeader("Library", Icons.Rounded.LibraryMusic)
-
-            item {
-                ScanLibraryItem(isSyncing) {
-                    libraryViewModel.syncLibrary()
-                }
-            }
-            item {
-                SettingsSliderItem(
-                    title = "Minimum Track Duration",
-                    value = (minDurationMs / 1000f),
-                    range = 0f..300f,
-                    label = if (minDurationMs == 0L) "No filter" else "${minDurationMs / 1000}s",
-                    steps = 30,
-                    onValueChange = { newValue ->
-                        val step = 10f
-                        val rounded = (newValue / step).roundToInt() * step
-                        scope.launch { prefs.setMinTrackDuration((rounded.toLong() * 1000).coerceAtLeast(0)) }
-                    },
-                )
-            }
-            settingsToggle("Show Artwork in Lists", "Display album art thumbnails in song lists", showArtworkList) {
-                scope.launch { prefs.setShowArtworkInList(it) }
-            }
-            settingsToggle("Group by Album Artist", "Use album artist for grouping (not track artist)", groupByAlbumArtist) {
-                scope.launch { prefs.setGroupByAlbumArtist(it) }
-            }
-            settingsToggle("Show Filename as Title", "Fall back to filename when title tag is missing", showFilenameTitle) {
-                scope.launch { prefs.setShowFilenameAsTitle(it) }
-            }
-            settingsToggle("Ignore Articles in Sort", "Sort \"The Beatles\" as \"Beatles\"", ignoreArticles) {
-                scope.launch { prefs.setIgnoreArticles(it) }
-            }
-            item {
-                var showDelimiterDialog by remember { mutableStateOf(false) }
-                SettingsTextItem(
-                    title = "Artist Delimiter",
-                    subtitle = "Characters that split multi-artist tags: $artistDelimiter",
-                    onClick = { showDelimiterDialog = true },
-                )
-                if (showDelimiterDialog) {
-                    var delimiterInput by remember { mutableStateOf(artistDelimiter) }
-                    AlertDialog(
-                        onDismissRequest = { showDelimiterDialog = false },
-                        title = { Text("Artist Delimiter") },
-                        text = {
-                            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                                Text(
-                                    "Characters used to split multi-artist tags (e.g. \"Artist1, Artist2\"). " +
-                                            "Enter all split characters with no spaces between them.",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                )
-                                OutlinedTextField(
-                                    value = delimiterInput,
-                                    onValueChange = { delimiterInput = it },
-                                    label = { Text("Delimiter characters") },
-                                    singleLine = true,
-                                    modifier = Modifier.fillMaxWidth(),
+            },
+            label = "settings_content"
+        ) { category ->
+            LazyColumn(
+                contentPadding = PaddingValues(
+                    top = padding.calculateTopPadding(),
+                    bottom = padding.calculateBottomPadding() + 32.dp,
+                ),
+                modifier = Modifier.fillMaxSize()
+            ) {
+                when (category) {
+                    SettingsCategory.Main -> {
+                        SettingsCategory.entries.drop(1).forEach { cat ->
+                            item {
+                                ListItem(
+                                    modifier = Modifier.clickable { currentCategory = cat },
+                                    headlineContent = { Text(cat.title, fontWeight = FontWeight.Medium) },
+                                    leadingContent = {
+                                        Icon(
+                                            cat.icon,
+                                            contentDescription = null,
+                                            tint = MaterialTheme.colorScheme.primary,
+                                            modifier = Modifier.size(24.dp)
+                                        )
+                                    },
+                                    trailingContent = {
+                                        Icon(
+                                            Icons.Rounded.ChevronRight,
+                                            contentDescription = null,
+                                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    },
+                                    colors = ListItemDefaults.colors(containerColor = Color.Transparent)
                                 )
                             }
-                        },
-                        confirmButton = {
-                            Button(
-                                onClick = {
-                                    scope.launch { prefs.setArtistDelimiter(delimiterInput) }
-                                    showDelimiterDialog = false
+                        }
+                    }
+
+                    SettingsCategory.Updates -> {
+                        item {
+                            var showDisableWarning by remember { mutableStateOf(false) }
+
+                            SegmentedSettingsItem(
+                                title = "Check for Updates",
+                                options = listOf("Launch" to "LAUNCH", "Daily" to "DAILY", "Weekly" to "WEEKLY", "Off" to "DISABLED"),
+                                selected = updateFreq,
+                                onSelect = {
+                                    if (it == "DISABLED") showDisableWarning = true
+                                    else settingsViewModel.setUpdateFrequency(it)
                                 },
-                                enabled = delimiterInput.isNotBlank(),
-                            ) { Text("Save") }
-                        },
-                        dismissButton = {
-                            TextButton(onClick = { showDelimiterDialog = false }) { Text("Cancel") }
-                        },
-                    )
-                }
-            }
-            item {
-                SegmentedSettingsItem(
-                    title = "Auto Scan Interval",
-                    options = listOf("Off" to "0", "1 hr" to "1", "6 hrs" to "6", "24 hrs" to "24"),
-                    selected = autoScanHours.toString(),
-                    onSelect = { scope.launch { prefs.setAutoScanIntervalHours(it.toInt()) } },
-                )
-            }
-
-            // ─── Last.fm ──────────────────────────────────────────────────────
-            settingsSectionHeader("Last.fm Scrobbling", Icons.Rounded.Radio)
-
-            item {
-                LastFmSection(
-                    authState = lastFmAuthState,
-                    enabled = lastFmEnabled,
-                    nowPlayingEnabled = lastFmNowPlaying,
-                    scrobblePct = lastFmScrobblePct,
-                    scrobbleMinSecs = lastFmScrobbleMinSecs,
-                    onlyOnWifi = lastFmOnlyWifi,
-                    offlineQueue = lastFmOfflineQueue,
-                    pendingScrobbles = lastFmPending,
-                    onEnabledChange = { settingsViewModel.setLastFmEnabled(it) },
-                    onLogin = { u, p -> settingsViewModel.lastFmLogin(u, p) },
-                    onLogout = { settingsViewModel.lastFmLogout() },
-                    onNowPlayingChange = { settingsViewModel.setLastFmNowPlaying(it) },
-                    onScrobblePctChange = { settingsViewModel.setLastFmScrobblePct(it) },
-                    onScrobbleMinSecsChange = { settingsViewModel.setLastFmScrobbleMinSecs(it) },
-                    onOnlyOnWifiChange = { settingsViewModel.setLastFmOnlyWifi(it) },
-                    onOfflineQueueChange = { settingsViewModel.setLastFmOfflineQueue(it) },
-                    onSnackbar = { msg -> scope.launch { snackbarHostState.showSnackbar(msg) } },
-                )
-            }
-
-            // ─── Notification ─────────────────────────────────────────────────
-            settingsSectionHeader("Notification", Icons.Rounded.Notifications)
-
-            settingsToggle("Show Artwork on Lock Screen", "Display album art on lock screen controls", lockscreenArtwork) {
-                scope.launch { prefs.setLockscreenArtwork(it) }
-            }
-            settingsToggle("Show Skip Buttons", "Include previous/next in notification shade", showSkipButtons) {
-                scope.launch { prefs.setShowSkipButtons(it) }
-            }
-
-            // ─── History ──────────────────────────────────────────────────────
-            settingsSectionHeader("Play History", Icons.Rounded.History)
-
-            settingsToggle("Track Play History", "Record which tracks you've listened to", historyEnabled) {
-                scope.launch { prefs.setHistoryEnabled(it) }
-            }
-            if (historyEnabled) {
-                item {
-                    SettingsSliderItem(
-                        title = "Minimum Listen Duration",
-                        value = minListenSecs.toFloat(),
-                        range = 10f..120f,
-                        label = "${minListenSecs}s",
-                        steps = 11,
-                        onValueChange = { newValue ->
-                            val step = 10f
-                            val rounded = (newValue / step).roundToInt() * step
-                            val finalSecs = rounded.toInt().coerceIn(10, 120)
-                            scope.launch { prefs.setListenThresholds(finalSecs, minListenPct) }
-                        },
-                    )
-                }
-                item {
-                    SettingsSliderItem(
-                        title = "Minimum Listen Percentage",
-                        value = minListenPct,
-                        range = 0.1f..1.0f,
-                        label = "${(minListenPct * 100).toInt()}%",
-                        steps = 9,
-                        onValueChange = { newValue ->
-                            val step = 0.1f
-                            val rounded = (newValue / step).roundToInt() * step
-                            val finalPct = rounded.coerceIn(0.1f, 1.0f)
-                            scope.launch { prefs.setListenThresholds(minListenSecs, finalPct) }
-                        },
-                    )
-                }
-                item {
-                    SettingsSliderItem(
-                        title = "Max History Items",
-                        value = maxHistory.toFloat(),
-                        range = 100f..5000f,
-                        label = "$maxHistory items",
-                        steps = 49,
-                        onValueChange = { newValue ->
-                            val step = 100f
-                            val rounded = (newValue / step).roundToInt() * step
-                            val final = rounded.toInt().coerceIn(100, 5000)
-                            scope.launch { prefs.setMaxHistoryItems(final) }
-                        },
-                    )
-                }
-            }
-
-            // ─── About ────────────────────────────────────────────────────────
-            settingsSectionHeader("About", Icons.Rounded.Info)
-
-            item {
-                SettingsTextItem(
-                    title = "Resonance",
-                    subtitle = "v1.0.0",
-                    icon = Icons.Rounded.MusicNote,
-                )
-            }
-            item {
-                val uriHandler = LocalUriHandler.current
-                SettingsTextItem(
-                    title = "GitHub Repository",
-                    subtitle = "View source code and report issues",
-                    icon = Icons.AutoMirrored.Rounded.OpenInNew,
-                    trailingIcon = Icons.AutoMirrored.Rounded.OpenInNew,
-                    onClick = { uriHandler.openUri("https://github.com/yuw1xx/resonance") },
-                )
-            }
-            item {
-                val uriHandler = LocalUriHandler.current
-                SettingsTextItem(
-                    title = "App License",
-                    subtitle = "View Resonance's open source license",
-                    icon = Icons.Rounded.Gavel,
-                    trailingIcon = Icons.AutoMirrored.Rounded.OpenInNew,
-                    onClick = { uriHandler.openUri("https://github.com/yuw1xx/resonance/blob/main/LICENSE") },
-                )
-            }
-            item {
-                SettingsTextItem(
-                    title = "Third-Party Licenses",
-                    subtitle = "Open source libraries used in this project",
-                    icon = Icons.Rounded.Description,
-                    onClick = onNavigateToLicenses,
-                )
-            }
-
-            // ─── Danger Zone ──────────────────────────────────────────────────
-            settingsSectionHeader("Data", Icons.Rounded.Storage)
-
-            item {
-                var showClearHistoryDialog by remember { mutableStateOf(false) }
-                val isClearingHistory by libraryViewModel.isClearingHistory.collectAsState()
-
-                SettingsTextItem(
-                    title = "Clear Playback History",
-                    subtitle = if (isClearingHistory) "Clearing…" else "Permanently delete all history records",
-                    icon = Icons.Rounded.DeleteForever,
-                    tint = MaterialTheme.colorScheme.error,
-                    onClick = { if (!isClearingHistory) showClearHistoryDialog = true },
-                )
-
-                if (showClearHistoryDialog) {
-                    AlertDialog(
-                        onDismissRequest = { showClearHistoryDialog = false },
-                        icon = {
-                            Icon(
-                                Icons.Rounded.DeleteForever,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.error,
                             )
-                        },
-                        title = { Text("Clear Playback History?") },
-                        text = {
-                            Text(
-                                "This will permanently delete all play counts and listen records. " +
-                                        "Smart Queue, Most Played, and Lost Memories will be reset. " +
-                                        "This cannot be undone.",
-                                style = MaterialTheme.typography.bodyMedium,
-                            )
-                        },
-                        confirmButton = {
-                            Button(
-                                onClick = {
-                                    showClearHistoryDialog = false
-                                    libraryViewModel.clearHistory()
-                                    scope.launch {
-                                        snackbarHostState.showSnackbar("Playback history cleared")
+
+                            if (showDisableWarning) {
+                                AlertDialog(
+                                    onDismissRequest = { showDisableWarning = false },
+                                    icon = { Icon(Icons.Rounded.Warning, null, tint = MaterialTheme.colorScheme.error) },
+                                    title = { Text("Disable Updates?") },
+                                    text = { Text("It is highly recommended to keep update checks enabled so you don't miss bug fixes and new features.\n\nAre you sure you want to disable automatic checks?") },
+                                    confirmButton = {
+                                        Button(
+                                            onClick = {
+                                                settingsViewModel.setUpdateFrequency("DISABLED")
+                                                showDisableWarning = false
+                                            },
+                                            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
+                                        ) { Text("Disable") }
+                                    },
+                                    dismissButton = {
+                                        TextButton(onClick = { showDisableWarning = false }) { Text("Keep Enabled") }
                                     }
+                                )
+                            }
+                        }
+
+                        item {
+                            val context = LocalContext.current
+                            val pkgInfo = context.packageManager.getPackageInfo(context.packageName, 0)
+                            val versionName = pkgInfo.versionName ?: "1.1"
+
+                            SettingsTextItem(
+                                title = "Check Now",
+                                subtitle = "Current version: v$versionName",
+                                icon = Icons.Rounded.Update,
+                                onClick = { settingsViewModel.checkForUpdates(versionName, isManual = true) }
+                            )
+                        }
+                    }
+
+                    SettingsCategory.Appearance -> {
+                        settingsToggle("System Dynamic Color", "Use Android 12+ wallpaper colours", dynamicColor) {
+                            scope.launch { prefs.setDynamicColorEnabled(it) }
+                        }
+
+                        if (!dynamicColor) {
+                            item {
+                                ThemeColorPicker(
+                                    current = presetColorInt,
+                                    onPick = { scope.launch { prefs.setPresetColor(it) } }
+                                )
+                            }
+                        }
+
+                        item {
+                            SegmentedSettingsItem(
+                                title = "Dark Theme",
+                                options = listOf("System" to "SYSTEM", "Light" to "LIGHT", "Dark" to "DARK"),
+                                selected = darkTheme,
+                                onSelect = { scope.launch { prefs.setDarkTheme(it) } },
+                            )
+                        }
+
+                        item {
+                            SegmentedSettingsItem(
+                                title = "Seekbar Style",
+                                options = listOf("Standard" to "STANDARD", "Waveform" to "WAVEFORM"),
+                                selected = seekbarStyle,
+                                onSelect = { scope.launch { prefs.setSeekbarStyle(it) } },
+                            )
+                        }
+                        settingsToggle("Blur Background", "Artwork-tinted blurred backdrop in player", blurBackground) {
+                            scope.launch { prefs.setBlurArtworkBackground(it) }
+                        }
+                        if (blurBackground) {
+                            item {
+                                SettingsSliderItem(
+                                    title = "Blur Intensity",
+                                    value = blurStrength,
+                                    range = 0.1f..0.7f,
+                                    label = "${(blurStrength * 100).toInt()}%",
+                                    onValueChange = { scope.launch { prefs.setBlurStrength(it) } },
+                                )
+                            }
+                        }
+                        settingsToggle("Artwork Animation", "Scale artwork on play/pause", artworkAnimation) {
+                            scope.launch { prefs.setArtworkAnimation(it) }
+                        }
+                        settingsToggle("Haptic Feedback", "Vibrate on seek and long-press", hapticFeedback) {
+                            scope.launch { prefs.setHapticFeedback(it) }
+                        }
+                        settingsToggle("Show Bitrate & Format", "Display audio quality badge in player", showBitrateInfo) {
+                            scope.launch { prefs.setShowBitrateInfo(it) }
+                        }
+                        item {
+                            SettingsSliderItem(
+                                title = "Corner Radius",
+                                value = cornerRadius.toFloat(),
+                                range = 0f..40f,
+                                label = "${cornerRadius}dp",
+                                steps = 40,
+                                onValueChange = { scope.launch { prefs.setCornerRadius(it.toInt()) } },
+                            )
+                        }
+                        item {
+                            SettingsSliderItem(
+                                title = "Album Grid Columns",
+                                value = albumGridCols.toFloat(),
+                                range = 2f..4f,
+                                label = "$albumGridCols columns",
+                                steps = 1,
+                                onValueChange = { scope.launch { prefs.setAlbumGridColumns(it.toInt()) } },
+                            )
+                        }
+                    }
+
+                    SettingsCategory.Player -> {
+                        item {
+                            SegmentedSettingsItem(
+                                title = "Player Layout",
+                                options = listOf("Standard" to "STANDARD", "Big Artwork" to "ARTWORK_BIG", "Lyrics Focus" to "LYRICS_FOCUS"),
+                                selected = playerLayout,
+                                onSelect = { scope.launch { prefs.setPlayerLayout(it) } },
+                            )
+                        }
+                        item {
+                            SegmentedSettingsItem(
+                                title = "Mini Player Style",
+                                options = listOf("Compact" to "COMPACT", "Card" to "CARD", "Floating" to "FLOATING"),
+                                selected = miniPlayerStyle,
+                                onSelect = { scope.launch { prefs.setMiniPlayerStyle(it) } },
+                            )
+                        }
+                        settingsToggle("Show Lyrics Button", "Display lyrics shortcut in player footer", showLyricsBtn) {
+                            scope.launch { prefs.setShowLyricsButton(it) }
+                        }
+                        item {
+                            SettingsSliderItem(
+                                title = "Lyrics Font Size",
+                                value = lyricsFontScale,
+                                range = 0.50f..1.75f,
+                                label = "${(lyricsFontScale * 100).toInt()}%",
+                                steps = 4,
+                                onValueChange = { newValue ->
+                                    val step = 0.25f
+                                    val rounded = (newValue / step).roundToInt() * step
+                                    scope.launch { prefs.setLyricsFontScale(rounded.coerceIn(0.50f, 1.75f)) }
                                 },
-                                colors = ButtonDefaults.buttonColors(
-                                    containerColor = MaterialTheme.colorScheme.error,
-                                    contentColor = MaterialTheme.colorScheme.onError,
-                                ),
-                            ) {
-                                Text("Clear History")
+                            )
+                        }
+                    }
+
+                    SettingsCategory.Playback -> {
+                        settingsToggle("Gapless Playback", "Smooth transition between tracks", gapless) {
+                            scope.launch { prefs.setGaplessEnabled(it) }
+                        }
+                        settingsToggle("Skip Silence", "Automatically skip silent parts of tracks", skipSilence) {
+                            scope.launch { prefs.setSkipSilence(it) }
+                        }
+                        item {
+                            SettingsSliderItem(
+                                title = "Crossfade Duration",
+                                value = crossfadeMs.toFloat(),
+                                range = 0f..10000f,
+                                label = if (crossfadeMs == 0) "Disabled" else "${crossfadeMs / 1000}s",
+                                steps = 10,
+                                onValueChange = { newValue ->
+                                    val step = 1000f
+                                    val rounded = (newValue / step).roundToInt() * step
+                                    scope.launch { prefs.setCrossfadeDuration(rounded.toInt()) }
+                                },
+                            )
+                        }
+                        item {
+                            SettingsSliderItem(
+                                title = "Playback Speed",
+                                value = playbackSpeed,
+                                range = 0.5f..2.0f,
+                                label = "${playbackSpeed}x",
+                                steps = 6,
+                                onValueChange = { newValue ->
+                                    val step = 0.25f
+                                    val rounded = (newValue / step).roundToInt() * step
+                                    scope.launch { prefs.setPlaybackSpeed(rounded.coerceIn(0.5f, 2.0f)) }
+                                },
+                            )
+                        }
+                        item {
+                            SettingsSliderItem(
+                                title = "Playback Pitch",
+                                value = playbackPitch,
+                                range = 0.5f..2.0f,
+                                label = "${playbackPitch}x",
+                                steps = 6,
+                                onValueChange = { newValue ->
+                                    val step = 0.25f
+                                    val rounded = (newValue / step).roundToInt() * step
+                                    scope.launch { prefs.setPlaybackPitch(rounded.coerceIn(0.5f, 2.0f)) }
+                                },
+                            )
+                        }
+                        settingsToggle("Resume on Headphones", "Continue playback when headphones are connected", resumeOnHeadphones) {
+                            scope.launch { prefs.setResumeOnHeadphones(it) }
+                        }
+                        settingsToggle("Pause on Disconnect", "Stop playback when headphones are removed", pauseOnHeadphonesOut) {
+                            scope.launch { prefs.setPauseOnHeadphonesOut(it) }
+                        }
+                        settingsToggle("Audio Ducking", "Lower volume when other apps play sound", duckAudio) {
+                            scope.launch { prefs.setDuckAudioOnFocusLoss(it) }
+                        }
+                        settingsToggle("Smart Shuffle", "Prioritise higher rated and recent tracks", smartShuffle) {
+                            scope.launch { prefs.setSmartShuffleEnabled(it) }
+                        }
+                    }
+
+                    SettingsCategory.Audio -> {
+                        item {
+                            SegmentedSettingsItem(
+                                title = "ReplayGain Mode",
+                                options = listOf("Off" to "OFF", "Track" to "TRACK", "Album" to "ALBUM"),
+                                selected = replayGainMode,
+                                onSelect = { scope.launch { prefs.setReplayGainMode(it) } },
+                            )
+                        }
+                        item {
+                            SettingsSliderItem(
+                                title = "ReplayGain Preamp",
+                                value = replayGainPreamp,
+                                range = -15f..15f,
+                                label = when {
+                                    replayGainPreamp == 0f -> "0 dB"
+                                    replayGainPreamp > 0 -> "+${replayGainPreamp.toInt()} dB"
+                                    else -> "${replayGainPreamp.toInt()} dB"
+                                },
+                                steps = 30,
+                                onValueChange = { scope.launch { prefs.setReplayGainPreamp(it) } },
+                            )
+                        }
+                        settingsToggle("Volume Normalisation", "Equalise loudness across all tracks", volumeNorm) {
+                            scope.launch { prefs.setVolumeNormalization(it) }
+                        }
+                    }
+
+                    SettingsCategory.Library -> {
+                        item {
+                            ScanLibraryItem(isSyncing) {
+                                libraryViewModel.syncLibrary()
                             }
-                        },
-                        dismissButton = {
-                            TextButton(onClick = { showClearHistoryDialog = false }) {
-                                Text("Cancel")
+                        }
+                        item {
+                            SettingsSliderItem(
+                                title = "Minimum Track Duration",
+                                value = (minDurationMs / 1000f),
+                                range = 0f..300f,
+                                label = if (minDurationMs == 0L) "No filter" else "${minDurationMs / 1000}s",
+                                steps = 30,
+                                onValueChange = { newValue ->
+                                    val step = 10f
+                                    val rounded = (newValue / step).roundToInt() * step
+                                    scope.launch { prefs.setMinTrackDuration((rounded.toLong() * 1000).coerceAtLeast(0)) }
+                                },
+                            )
+                        }
+                        settingsToggle("Show Artwork in Lists", "Display album art thumbnails in song lists", showArtworkList) {
+                            scope.launch { prefs.setShowArtworkInList(it) }
+                        }
+                        settingsToggle("Group by Album Artist", "Use album artist for grouping (not track artist)", groupByAlbumArtist) {
+                            scope.launch { prefs.setGroupByAlbumArtist(it) }
+                        }
+                        settingsToggle("Show Filename as Title", "Fall back to filename when title tag is missing", showFilenameTitle) {
+                            scope.launch { prefs.setShowFilenameAsTitle(it) }
+                        }
+                        settingsToggle("Ignore Articles in Sort", "Sort \"The Beatles\" as \"Beatles\"", ignoreArticles) {
+                            scope.launch { prefs.setIgnoreArticles(it) }
+                        }
+                        item {
+                            var showDelimiterDialog by remember { mutableStateOf(false) }
+                            SettingsTextItem(
+                                title = "Artist Delimiter",
+                                subtitle = "Characters that split multi-artist tags: $artistDelimiter",
+                                onClick = { showDelimiterDialog = true },
+                            )
+                            if (showDelimiterDialog) {
+                                var delimiterInput by remember { mutableStateOf(artistDelimiter) }
+                                AlertDialog(
+                                    onDismissRequest = { showDelimiterDialog = false },
+                                    title = { Text("Artist Delimiter") },
+                                    text = {
+                                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                            Text(
+                                                "Characters used to split multi-artist tags (e.g. \"Artist1, Artist2\"). " +
+                                                        "Enter all split characters with no spaces between them.",
+                                                style = MaterialTheme.typography.bodySmall,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            )
+                                            OutlinedTextField(
+                                                value = delimiterInput,
+                                                onValueChange = { delimiterInput = it },
+                                                label = { Text("Delimiter characters") },
+                                                singleLine = true,
+                                                modifier = Modifier.fillMaxWidth(),
+                                            )
+                                        }
+                                    },
+                                    confirmButton = {
+                                        Button(
+                                            onClick = {
+                                                scope.launch { prefs.setArtistDelimiter(delimiterInput) }
+                                                showDelimiterDialog = false
+                                            },
+                                            enabled = delimiterInput.isNotBlank(),
+                                        ) { Text("Save") }
+                                    },
+                                    dismissButton = {
+                                        TextButton(onClick = { showDelimiterDialog = false }) { Text("Cancel") }
+                                    },
+                                )
                             }
-                        },
-                    )
+                        }
+                        item {
+                            SegmentedSettingsItem(
+                                title = "Auto Scan Interval",
+                                options = listOf("Off" to "0", "1 hr" to "1", "6 hrs" to "6", "24 hrs" to "24"),
+                                selected = autoScanHours.toString(),
+                                onSelect = { scope.launch { prefs.setAutoScanIntervalHours(it.toInt()) } },
+                            )
+                        }
+                    }
+
+                    SettingsCategory.LastFm -> {
+                        item {
+                            LastFmSection(
+                                authState = lastFmAuthState,
+                                enabled = lastFmEnabled,
+                                nowPlayingEnabled = lastFmNowPlaying,
+                                scrobblePct = lastFmScrobblePct,
+                                scrobbleMinSecs = lastFmScrobbleMinSecs,
+                                onlyOnWifi = lastFmOnlyWifi,
+                                offlineQueue = lastFmOfflineQueue,
+                                pendingScrobbles = lastFmPending,
+                                onEnabledChange = { settingsViewModel.setLastFmEnabled(it) },
+                                onLogin = { u, p -> settingsViewModel.lastFmLogin(u, p) },
+                                onLogout = { settingsViewModel.lastFmLogout() },
+                                onNowPlayingChange = { settingsViewModel.setLastFmNowPlaying(it) },
+                                onScrobblePctChange = { settingsViewModel.setLastFmScrobblePct(it) },
+                                onScrobbleMinSecsChange = { settingsViewModel.setLastFmScrobbleMinSecs(it) },
+                                onOnlyOnWifiChange = { settingsViewModel.setLastFmOnlyWifi(it) },
+                                onOfflineQueueChange = { settingsViewModel.setLastFmOfflineQueue(it) },
+                                onSnackbar = { msg -> scope.launch { snackbarHostState.showSnackbar(msg) } },
+                            )
+                        }
+                    }
+
+                    SettingsCategory.Notification -> {
+                        settingsToggle("Show Artwork on Lock Screen", "Display album art on lock screen controls", lockscreenArtwork) {
+                            scope.launch { prefs.setLockscreenArtwork(it) }
+                        }
+                        settingsToggle("Show Skip Buttons", "Include previous/next in notification shade", showSkipButtons) {
+                            scope.launch { prefs.setShowSkipButtons(it) }
+                        }
+                    }
+
+                    SettingsCategory.History -> {
+                        settingsToggle("Track Play History", "Record which tracks you've listened to", historyEnabled) {
+                            scope.launch { prefs.setHistoryEnabled(it) }
+                        }
+                        if (historyEnabled) {
+                            item {
+                                SettingsSliderItem(
+                                    title = "Minimum Listen Duration",
+                                    value = minListenSecs.toFloat(),
+                                    range = 10f..120f,
+                                    label = "${minListenSecs}s",
+                                    steps = 11,
+                                    onValueChange = { newValue ->
+                                        val step = 10f
+                                        val rounded = (newValue / step).roundToInt() * step
+                                        val finalSecs = rounded.toInt().coerceIn(10, 120)
+                                        scope.launch { prefs.setListenThresholds(finalSecs, minListenPct) }
+                                    },
+                                )
+                            }
+                            item {
+                                SettingsSliderItem(
+                                    title = "Minimum Listen Percentage",
+                                    value = minListenPct,
+                                    range = 0.1f..1.0f,
+                                    label = "${(minListenPct * 100).toInt()}%",
+                                    steps = 9,
+                                    onValueChange = { newValue ->
+                                        val step = 0.1f
+                                        val rounded = (newValue / step).roundToInt() * step
+                                        val finalPct = rounded.coerceIn(0.1f, 1.0f)
+                                        scope.launch { prefs.setListenThresholds(minListenSecs, finalPct) }
+                                    },
+                                )
+                            }
+                            item {
+                                SettingsSliderItem(
+                                    title = "Max History Items",
+                                    value = maxHistory.toFloat(),
+                                    range = 100f..5000f,
+                                    label = "$maxHistory items",
+                                    steps = 49,
+                                    onValueChange = { newValue ->
+                                        val step = 100f
+                                        val rounded = (newValue / step).roundToInt() * step
+                                        val final = rounded.toInt().coerceIn(100, 5000)
+                                        scope.launch { prefs.setMaxHistoryItems(final) }
+                                    },
+                                )
+                            }
+                        }
+                    }
+
+                    SettingsCategory.Data -> {
+                        item {
+                            var showClearHistoryDialog by remember { mutableStateOf(false) }
+                            val isClearingHistory by libraryViewModel.isClearingHistory.collectAsState()
+
+                            SettingsTextItem(
+                                title = "Clear Playback History",
+                                subtitle = if (isClearingHistory) "Clearing…" else "Permanently delete all history records",
+                                icon = Icons.Rounded.DeleteForever,
+                                tint = MaterialTheme.colorScheme.error,
+                                onClick = { if (!isClearingHistory) showClearHistoryDialog = true },
+                            )
+
+                            if (showClearHistoryDialog) {
+                                AlertDialog(
+                                    onDismissRequest = { showClearHistoryDialog = false },
+                                    icon = {
+                                        Icon(
+                                            Icons.Rounded.DeleteForever,
+                                            contentDescription = null,
+                                            tint = MaterialTheme.colorScheme.error,
+                                        )
+                                    },
+                                    title = { Text("Clear Playback History?") },
+                                    text = {
+                                        Text(
+                                            "This will permanently delete all play counts and listen records. " +
+                                                    "Smart Queue, Most Played, and Lost Memories will be reset. " +
+                                                    "This cannot be undone.",
+                                            style = MaterialTheme.typography.bodyMedium,
+                                        )
+                                    },
+                                    confirmButton = {
+                                        Button(
+                                            onClick = {
+                                                showClearHistoryDialog = false
+                                                libraryViewModel.clearHistory()
+                                                scope.launch {
+                                                    snackbarHostState.showSnackbar("Playback history cleared")
+                                                }
+                                            },
+                                            colors = ButtonDefaults.buttonColors(
+                                                containerColor = MaterialTheme.colorScheme.error,
+                                                contentColor = MaterialTheme.colorScheme.onError,
+                                            ),
+                                        ) {
+                                            Text("Clear History")
+                                        }
+                                    },
+                                    dismissButton = {
+                                        TextButton(onClick = { showClearHistoryDialog = false }) {
+                                            Text("Cancel")
+                                        }
+                                    },
+                                )
+                            }
+                        }
+                    }
+
+                    SettingsCategory.About -> {
+                        item {
+                            SettingsTextItem(
+                                title = "Resonance",
+                                subtitle = "v1.1.1",
+                                icon = Icons.Rounded.MusicNote,
+                            )
+                        }
+                        item {
+                            val uriHandler = LocalUriHandler.current
+                            SettingsTextItem(
+                                title = "GitHub Repository",
+                                subtitle = "View source code and report issues",
+                                icon = Icons.AutoMirrored.Rounded.OpenInNew,
+                                trailingIcon = Icons.AutoMirrored.Rounded.OpenInNew,
+                                onClick = { uriHandler.openUri("https://github.com/yuw1xx/resonance") },
+                            )
+                        }
+                        item {
+                            val uriHandler = LocalUriHandler.current
+                            SettingsTextItem(
+                                title = "App License",
+                                subtitle = "View Resonance's open source license",
+                                icon = Icons.Rounded.Gavel,
+                                trailingIcon = Icons.AutoMirrored.Rounded.OpenInNew,
+                                onClick = { uriHandler.openUri("https://github.com/yuw1xx/resonance/blob/main/LICENSE") },
+                            )
+                        }
+                        item {
+                            SettingsTextItem(
+                                title = "Third-Party Licenses",
+                                subtitle = "Open source libraries used in this project",
+                                icon = Icons.Rounded.Description,
+                                onClick = onNavigateToLicenses,
+                            )
+                        }
+                    }
                 }
             }
         }
@@ -1098,35 +1161,6 @@ private fun ScanLibraryItem(isSyncing: Boolean, onScan: () -> Unit) {
         },
         colors = ListItemDefaults.colors(containerColor = Color.Transparent),
     )
-}
-
-private fun LazyListScope.settingsSectionHeader(title: String, icon: ImageVector) {
-    item {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(start = 16.dp, end = 16.dp, top = 28.dp, bottom = 4.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            Icon(
-                icon,
-                contentDescription = null,
-                modifier = Modifier.size(16.dp),
-                tint = MaterialTheme.colorScheme.primary,
-            )
-            Text(
-                text = title,
-                style = MaterialTheme.typography.labelLarge,
-                color = MaterialTheme.colorScheme.primary,
-                fontWeight = FontWeight.Bold,
-            )
-        }
-        HorizontalDivider(
-            modifier = Modifier.padding(horizontal = 16.dp),
-            color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f),
-        )
-    }
 }
 
 private fun LazyListScope.settingsToggle(

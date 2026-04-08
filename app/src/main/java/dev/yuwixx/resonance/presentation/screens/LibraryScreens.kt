@@ -21,6 +21,8 @@ import androidx.compose.foundation.lazy.grid.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.automirrored.rounded.PlaylistAdd
@@ -37,6 +39,7 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.*
@@ -62,6 +65,7 @@ fun SongsScreen(
     playerViewModel: PlayerViewModel,
     onSearchClick: () -> Unit,
     onNavigateToPlayer: () -> Unit,
+    onNavigateToTagEditor: (Long) -> Unit, // <--- NEW PARAMETER
 ) {
     val songs by libraryViewModel.allSongs.collectAsState()
     val currentSong by playerViewModel.currentSong.collectAsState()
@@ -90,7 +94,6 @@ fun SongsScreen(
                         }
                     },
                     actions = {
-                        // Select All
                         IconButton(onClick = { selectedSongs = songs.toSet() }) {
                             Icon(Icons.Rounded.SelectAll, "Select All")
                         }
@@ -241,7 +244,8 @@ fun SongsScreen(
                 libraryViewModel.addSongsToPlaylist(playlist.id, listOf(song.id))
                 songForInfoSheet = null
                 showInfoSheetPlaylistPicker = false
-            }
+            },
+            onEditTags = { onNavigateToTagEditor(song.id) } // <--- WIRED HERE
         )
     }
 }
@@ -589,7 +593,10 @@ fun AlbumDetailScreen(
         album?.let {
             LazyColumn(
                 modifier = Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(bottom = 80.dp),
+                contentPadding = PaddingValues(
+                    top = padding.calculateTopPadding(),
+                    bottom = 80.dp
+                ),
             ) {
                 item {
                     AlbumHeader(album = it, songs = albumSongs) {
@@ -856,7 +863,6 @@ fun PlaylistDetailScreen(
 
     val playlist = remember(playlists, playlistId) { playlists.find { it.id == playlistId } }
 
-    // Sort state — persists for the session; does NOT mutate DB order until user picks "Save Order"
     var sortOrder by remember { mutableStateOf(SortOrder.NATURAL) }
     val playlistSongs: List<Song> = remember(allSongs, playlist, sortOrder) {
         val base = playlist?.songs ?: emptyList()
@@ -876,18 +882,15 @@ fun PlaylistDetailScreen(
         }
     }
 
-    // ── dialogs / menus ──────────────────────────────────────────────────────
     var showDeleteDialog  by remember { mutableStateOf(false) }
     var showRenameDialog  by remember { mutableStateOf(false) }
     var showSortDialog    by remember { mutableStateOf(false) }
     var showOverflowMenu  by remember { mutableStateOf(false) }
 
-    // ── image picker for playlist cover ──────────────────────────────────────
     val imagePicker = rememberLauncherForActivityResult(
         ActivityResultContracts.GetContent()
     ) { uri -> uri?.let { libraryViewModel.updatePlaylistArtwork(playlistId, it) } }
 
-    // ── file creator for M3U export ──────────────────────────────────────────
     val exportLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.CreateDocument("audio/x-mpegurl")
     ) { uri ->
@@ -1010,7 +1013,6 @@ fun PlaylistDetailScreen(
         }
     }
 
-    // ── Delete dialog ─────────────────────────────────────────────────────────
     if (showDeleteDialog) {
         AlertDialog(
             onDismissRequest = { showDeleteDialog = false },
@@ -1029,7 +1031,6 @@ fun PlaylistDetailScreen(
         )
     }
 
-    // ── Rename dialog ─────────────────────────────────────────────────────────
     if (showRenameDialog) {
         RenamePlaylistDialog(
             currentName = playlist?.name ?: "",
@@ -1041,14 +1042,12 @@ fun PlaylistDetailScreen(
         )
     }
 
-    // ── Sort dialog ───────────────────────────────────────────────────────────
     if (showSortDialog) {
         PlaylistSortDialog(
             current = sortOrder,
             onDismiss = { showSortDialog = false },
             onSelect = { order ->
                 sortOrder = order
-                // Persist the new order into the DB so it survives restarts
                 scope.launch { libraryViewModel.reorderPlaylist(playlistId, playlistSongs) }
                 showSortDialog = false
             }
@@ -1069,7 +1068,6 @@ fun PlaylistHeader(
             .padding(24.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        // ── Artwork with edit-pencil overlay ──────────────────────────────────
         Box(
             modifier = Modifier
                 .size(200.dp)
@@ -1100,7 +1098,6 @@ fun PlaylistHeader(
                     }
                 }
             }
-            // Edit badge in bottom-right corner
             Box(
                 modifier = Modifier
                     .align(Alignment.BottomEnd)
@@ -1380,6 +1377,7 @@ fun SongInfoBottomSheet(
     playlists: List<Playlist>,
     showPlaylistPicker: Boolean,
     onPlaylistSelected: (Playlist) -> Unit,
+    onEditTags: () -> Unit // <--- NEW PARAMETER
 ) {
     ModalBottomSheet(onDismissRequest = onDismiss) {
         if (showPlaylistPicker) {
@@ -1435,6 +1433,16 @@ fun SongInfoBottomSheet(
                     headlineContent = { Text("Add to Playlist") },
                     leadingContent = { Icon(Icons.AutoMirrored.Rounded.PlaylistAdd, null) }
                 )
+
+                // NEW: Edit Tags Button
+                ListItem(
+                    modifier = Modifier.clickable {
+                        onEditTags()
+                        onDismiss()
+                    },
+                    headlineContent = { Text("Edit Tags") },
+                    leadingContent = { Icon(Icons.Rounded.Edit, null) }
+                )
             }
         }
     }
@@ -1454,7 +1462,6 @@ fun LikedSongsScreen(
     val allSongs by libraryViewModel.allSongs.collectAsState()
     val likedIds by playerViewModel.likedSongIds.collectAsState(initial = emptyList())
 
-    // Preserve liked order (most-recently-liked first), matching only loaded songs
     val likedSongs: List<Song> = remember(allSongs, likedIds) {
         val songMap = allSongs.associateBy { it.id }
         likedIds.mapNotNull { songMap[it] }
@@ -1687,7 +1694,6 @@ fun SearchScreen(
                     modifier = Modifier.fillMaxSize(),
                     contentPadding = padding,
                 ) {
-                    // ── Artists ──────────────────────────────────────────────
                     if (filteredArtists.isNotEmpty()) {
                         item {
                             Text(
@@ -1725,7 +1731,6 @@ fun SearchScreen(
                         }
                     }
 
-                    // ── Albums ───────────────────────────────────────────────
                     if (filteredAlbums.isNotEmpty()) {
                         item {
                             Text(
@@ -1760,7 +1765,6 @@ fun SearchScreen(
                         }
                     }
 
-                    // ── Songs ────────────────────────────────────────────────
                     if (filteredSongs.isNotEmpty()) {
                         item {
                             Text(
@@ -1783,6 +1787,88 @@ fun SearchScreen(
                     }
                 }
             }
+        }
+    }
+}
+
+// ─── Tag Editor Screen ────────────────────────────────────────────────────────
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun TagEditorScreen(
+    songId: Long,
+    libraryViewModel: LibraryViewModel,
+    onBack: () -> Unit
+) {
+    val allSongs by libraryViewModel.allSongs.collectAsState()
+    val song = remember(allSongs, songId) { allSongs.find { it.id == songId } }
+
+    if (song == null) {
+        onBack()
+        return
+    }
+
+    var title by remember { mutableStateOf(song.title) }
+    var artist by remember { mutableStateOf(song.artist) }
+    var album by remember { mutableStateOf(song.album) }
+    var genre by remember { mutableStateOf(song.genre) }
+    var year by remember { mutableStateOf(song.year.toString()) }
+    var track by remember { mutableStateOf(song.trackNumber.toString()) }
+
+    var isSaving by remember { mutableStateOf(false) }
+
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text("Edit Tags") },
+                navigationIcon = {
+                    IconButton(onClick = onBack) { Icon(Icons.Rounded.ArrowBack, "Back") }
+                },
+                actions = {
+                    TextButton(
+                        onClick = {
+                            isSaving = true
+                            libraryViewModel.updateSongTags(
+                                songId = songId,
+                                title = title,
+                                artist = artist,
+                                album = album,
+                                genre = genre,
+                                year = year.toIntOrNull() ?: 0,
+                                trackNumber = track.toIntOrNull() ?: 0
+                            )
+                            onBack()
+                        },
+                        enabled = !isSaving
+                    ) {
+                        Text("Save")
+                    }
+                }
+            )
+        }
+    ) { padding ->
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(padding)
+                .padding(horizontal = 16.dp)
+                .verticalScroll(rememberScrollState()),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            OutlinedTextField(value = title, onValueChange = { title = it }, label = { Text("Title") }, modifier = Modifier.fillMaxWidth())
+            OutlinedTextField(value = artist, onValueChange = { artist = it }, label = { Text("Artist") }, modifier = Modifier.fillMaxWidth())
+            OutlinedTextField(value = album, onValueChange = { album = it }, label = { Text("Album") }, modifier = Modifier.fillMaxWidth())
+            OutlinedTextField(value = genre, onValueChange = { genre = it }, label = { Text("Genre") }, modifier = Modifier.fillMaxWidth())
+            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                OutlinedTextField(value = year, onValueChange = { year = it }, label = { Text("Year") }, modifier = Modifier.weight(1f), keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
+                OutlinedTextField(value = track, onValueChange = { track = it }, label = { Text("Track No.") }, modifier = Modifier.weight(1f), keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
+            }
+            Spacer(Modifier.height(16.dp))
+            Text(
+                "Note: Saving updates your library instantly. Modifying the physical file requires storage permissions and depends on Android OS restrictions.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
         }
     }
 }

@@ -50,7 +50,7 @@ data class ReceiveParams(
     val passphrase: String? = null,
 ) {
     val downloadUrl: String get() = "http://$ip:$port/$token"
-    val rejectUrl: String get() = "http://$ip:$port/reject?token=$token" // <-- Added
+    val rejectUrl: String get() = "http://$ip:$port/reject?token=$token"
 
     companion object {
         fun parse(uri: Uri): ReceiveParams? {
@@ -72,6 +72,7 @@ data class ReceiveParams(
     }
 }
 
+@RequiresApi(Build.VERSION_CODES.Q)
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalPermissionsApi::class)
 @Composable
 fun ReceiveSheet(
@@ -96,6 +97,7 @@ fun ReceiveSheet(
     }
 }
 
+@RequiresApi(Build.VERSION_CODES.Q)
 @OptIn(ExperimentalPermissionsApi::class)
 @Composable
 private fun ReceiveContent(
@@ -141,6 +143,7 @@ private sealed class ReceiveState {
     data class  Error(val message: String)   : ReceiveState()
 }
 
+@RequiresApi(Build.VERSION_CODES.Q)
 @Composable
 private fun ReceiveTransferContent(
     params    : ReceiveParams,
@@ -309,7 +312,7 @@ private suspend fun connectToP2pNetwork(context: Context, params: ReceiveParams)
                 if (!resumed) { resumed = true; cont.resume(null) }
             }
         }
-        cm.requestNetwork(request, callback, 20_000)
+        cm.requestNetwork(request, callback, 45_000)
     }
 }
 
@@ -321,9 +324,9 @@ private suspend fun performDownloadTask(
         val destFile = File(destDir, "${params.title}.${params.ext}")
 
         val url = URL(params.downloadUrl)
-        val connection = url.openConnection().apply {
-            connectTimeout = 10_000
-            readTimeout    = 30_000
+        val connection = (network?.openConnection(url) ?: url.openConnection()).apply {
+            connectTimeout = 15_000
+            readTimeout    = 300_000
             connect()
         }
 

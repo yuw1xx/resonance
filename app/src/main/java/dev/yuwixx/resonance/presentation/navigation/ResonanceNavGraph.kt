@@ -40,6 +40,12 @@ sealed class Screen(val route: String) {
     data object Licenses      : Screen("licenses")
     data object NowPlayingQueue : Screen("now_playing_queue")
     data object LyricsEditor  : Screen("lyrics_editor")
+
+    // NEW: Tag Editor Route
+    data object TagEditor : Screen("tag_editor/{songId}") {
+        fun createRoute(songId: Long) = "tag_editor/$songId"
+    }
+
     data object AlbumDetail   : Screen("album_detail/{albumId}") {
         fun createRoute(albumId: Long) = "album_detail/$albumId"
     }
@@ -163,7 +169,6 @@ fun ResonanceNavGraph(
             navController = navController,
             startDestination = Screen.Home.route,
             modifier = Modifier.padding(bottom = innerPadding.calculateBottomPadding()),
-            // Default transitions — Material You 3 spring physics
             enterTransition = {
                 slideInHorizontally(
                     spring(dampingRatio = 0.85f, stiffness = 400f)
@@ -207,6 +212,7 @@ fun ResonanceNavGraph(
                     playerViewModel = playerViewModel,
                     onSearchClick = { navController.navigate(Screen.Search.route) },
                     onNavigateToPlayer = navigateToPlayer,
+                    onNavigateToTagEditor = { id -> navController.navigate(Screen.TagEditor.createRoute(id)) }
                 )
             }
 
@@ -254,8 +260,6 @@ fun ResonanceNavGraph(
             composable(
                 route = Screen.Player.route,
                 enterTransition = {
-                    // Smooth spring slide-up that feels like the screen is expanding
-                    // from the mini-player at the bottom of the screen.
                     slideInVertically(
                         animationSpec = spring(
                             dampingRatio = 0.82f,
@@ -265,15 +269,12 @@ fun ResonanceNavGraph(
                             fadeIn(tween(260, easing = EaseOutCubic))
                 },
                 exitTransition = {
-                    // Exit: no slide, just a quick fade — the screen behind is
-                    // already visible so no movement is needed.
                     fadeOut(tween(200, easing = EaseInCubic))
                 },
                 popEnterTransition = {
                     fadeIn(tween(180))
                 },
                 popExitTransition = {
-                    // Collapse back down toward the mini-player.
                     slideOutVertically(
                         animationSpec = spring(
                             dampingRatio = 0.9f,
@@ -307,6 +308,19 @@ fun ResonanceNavGraph(
                     onAlbumClick = { album -> navController.navigate(Screen.AlbumDetail.createRoute(album.id)) },
                     onArtistClick = { artist -> navController.navigate(Screen.ArtistDetail.createRoute(artist.name)) },
                     onNavigateToPlayer = navigateToPlayer,
+                )
+            }
+
+            // NEW: Tag Editor Route
+            composable(
+                route = Screen.TagEditor.route,
+                arguments = listOf(navArgument("songId") { type = NavType.LongType })
+            ) { backStackEntry ->
+                val songId = backStackEntry.arguments?.getLong("songId") ?: return@composable
+                TagEditorScreen(
+                    songId = songId,
+                    libraryViewModel = libraryViewModel,
+                    onBack = { navController.popBackStack() }
                 )
             }
 

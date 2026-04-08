@@ -8,6 +8,7 @@ import androidx.annotation.RequiresApi
 import androidx.compose.ui.graphics.Color
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import androidx.media3.common.C
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaMetadata
 import androidx.media3.common.PlaybackParameters
@@ -87,8 +88,9 @@ class PlayerViewModel @Inject constructor(
         if (enabled || preset == null) null else Color(preset)
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
 
-    val showWaveform = prefs.showWaveformSeekbar
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), true)
+    // <--- CHANGED THIS TO SEEKBAR STYLE
+    val seekbarStyle = prefs.seekbarStyle
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), "WAVEFORM")
 
     val blurBackground = prefs.blurArtworkBackground
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), true)
@@ -99,7 +101,6 @@ class PlayerViewModel @Inject constructor(
     val artworkAnimation = prefs.artworkAnimation
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), true)
 
-    // NEW PLAYER PREFERENCES
     val playerLayout = prefs.playerLayout
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), "STANDARD")
 
@@ -355,21 +356,46 @@ class PlayerViewModel @Inject constructor(
                     val song = musicRepository.allSongs.first().find { it.id == songId }
                     if (song != null) {
                         _currentSong.value = song
-                        _waveformData.value = waveformExtractor.extract(song.id, song.uri)
-
-                        _lyricsResult.value = dev.yuwixx.resonance.data.repository.LyricsResult.NotFound
+                        _waveformData.value = null
+                        _lyricsResult.value = dev.yuwixx.resonance.data.repository.LyricsResult.Loading
                         _activeLyricIndex.value = -1
-                        _lyricsResult.value = lyricsRepository.getLyrics(
-                            songId = song.id,
-                            title = song.title,
-                            artist = song.artist,
-                            album = song.album,
-                            durationMs = song.duration
-                        )
+
+                        launch { _waveformData.value = waveformExtractor.extract(song.id, song.uri) }
+                        launch {
+                            _lyricsResult.value = lyricsRepository.getLyrics(
+                                songId = song.id,
+                                title = song.title,
+                                artist = song.artist,
+                                album = song.album,
+                                durationMs = song.duration
+                            )
+                        }
 
                         scrobbleStartedAt = System.currentTimeMillis()
                         scrobbleSubmittedForCurrentTrack = false
                         lastFmRepository.updateNowPlaying(song)
+
+                        _controller?.let { ctrl ->
+                            val nextIndex = ctrl.nextMediaItemIndex
+                            if (nextIndex != C.INDEX_UNSET) {
+                                val nextId = ctrl.getMediaItemAt(nextIndex).mediaId.toLongOrNull()
+                                if (nextId != null) {
+                                    launch(Dispatchers.IO) {
+                                        val nextSong = musicRepository.allSongs.first().find { it.id == nextId }
+                                        if (nextSong != null) {
+                                            waveformExtractor.extract(nextSong.id, nextSong.uri)
+                                            lyricsRepository.getLyrics(
+                                                songId = nextSong.id,
+                                                title = nextSong.title,
+                                                artist = nextSong.artist,
+                                                album = nextSong.album,
+                                                durationMs = nextSong.duration
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
                     }
                 }
             }

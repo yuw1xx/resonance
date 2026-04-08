@@ -37,30 +37,29 @@ class ResonancePreferences @Inject constructor(
         val REPLAY_GAIN_PREAMP_DB = floatPreferencesKey("replay_gain_preamp_db")
         val PLAYBACK_SPEED = floatPreferencesKey("playback_speed")
         val PLAYBACK_PITCH = floatPreferencesKey("playback_pitch")
-        val SMART_SHUFFLE_ENABLED = booleanPreferencesKey("smart_shuffle_enabled")
         val RESUME_ON_HEADPHONES = booleanPreferencesKey("resume_on_headphones")
         val PAUSE_ON_HEADPHONES_OUT = booleanPreferencesKey("pause_on_headphones_out")
         val DUCK_AUDIO_ON_FOCUS_LOSS = booleanPreferencesKey("duck_audio_on_focus_loss")
+        val SMART_SHUFFLE_ENABLED = booleanPreferencesKey("smart_shuffle_enabled")
         val VOLUME_NORMALIZATION = booleanPreferencesKey("volume_normalization")
 
         // Library
         val MIN_TRACK_DURATION_MS = longPreferencesKey("min_track_duration_ms")
         val ARTIST_DELIMITER = stringPreferencesKey("artist_delimiter")
         val EXCLUDED_FOLDERS = stringSetPreferencesKey("excluded_folders")
-        val SORT_ORDER = stringPreferencesKey("sort_order")
         val SHOW_ARTWORK_IN_LIST = booleanPreferencesKey("show_artwork_in_list")
-        val FETCH_ARTIST_IMAGES = booleanPreferencesKey("fetch_artist_images")
         val GROUP_BY_ALBUM_ARTIST = booleanPreferencesKey("group_by_album_artist")
         val SHOW_FILENAME_AS_TITLE = booleanPreferencesKey("show_filename_as_title")
         val IGNORE_ARTICLES = booleanPreferencesKey("ignore_articles")
         val AUTO_SCAN_INTERVAL_HOURS = intPreferencesKey("auto_scan_interval_hours")
+        val FETCH_ARTIST_IMAGES = booleanPreferencesKey("fetch_artist_images")
 
-        // UI
+        // Appearance
         val DYNAMIC_COLOR_ENABLED = booleanPreferencesKey("dynamic_color_enabled")
         val PRESET_COLOR = intPreferencesKey("preset_color")
         val DARK_THEME = stringPreferencesKey("dark_theme")
-        val SHOW_WAVEFORM_SEEKBAR = booleanPreferencesKey("show_waveform_seekbar")
         val CORNER_RADIUS = intPreferencesKey("corner_radius")
+        val SEEKBAR_STYLE = stringPreferencesKey("seekbar_style") // <--- CHANGED
         val BLUR_ARTWORK_BACKGROUND = booleanPreferencesKey("blur_artwork_background")
         val BLUR_STRENGTH = floatPreferencesKey("blur_strength")
         val ARTWORK_ANIMATION = booleanPreferencesKey("artwork_animation")
@@ -91,362 +90,185 @@ class ResonancePreferences @Inject constructor(
         val LAST_FM_SCROBBLE_OFFLINE = booleanPreferencesKey("last_fm_scrobble_offline")
         val LAST_FM_USERNAME = stringPreferencesKey("last_fm_username")
         val LAST_FM_SESSION_KEY = stringPreferencesKey("last_fm_session_key")
-        val LAST_FM_API_KEY = stringPreferencesKey("last_fm_api_key")
-        val LAST_FM_API_SECRET = stringPreferencesKey("last_fm_api_secret")
     }
 
     val isFirstRun: Flow<Boolean> = ds.data.map { it[IS_FIRST_RUN] ?: true }
-
-    suspend fun setFirstRunCompleted() {
-        ds.edit { it[IS_FIRST_RUN] = false }
-    }
-
-    // ─── Updates ─────────────────────────────────────────────────────────────
+    suspend fun setFirstRunCompleted() { ds.edit { it[IS_FIRST_RUN] = false } }
 
     val updateFrequency: Flow<String> = ds.data.map { it[UPDATE_FREQUENCY] ?: "DAILY" }
-
-    suspend fun setUpdateFrequency(freq: String) {
-        ds.edit { it[UPDATE_FREQUENCY] = freq }
-    }
+    suspend fun setUpdateFrequency(freq: String) { ds.edit { it[UPDATE_FREQUENCY] = freq } }
 
     val lastUpdateCheck: Flow<Long> = ds.data.map { it[LAST_UPDATE_CHECK] ?: 0L }
-
-    suspend fun setLastUpdateCheck(time: Long) {
-        ds.edit { it[LAST_UPDATE_CHECK] = time }
-    }
-
-    // ─── Playback ─────────────────────────────────────────────────────────────
+    suspend fun setLastUpdateCheck(time: Long) { ds.edit { it[LAST_UPDATE_CHECK] = time } }
 
     val repeatMode: Flow<RepeatMode> = ds.data.map {
-        when (it[REPEAT_MODE]) {
-            "ONE" -> RepeatMode.ONE
-            "ALL" -> RepeatMode.ALL
-            else -> RepeatMode.NONE
-        }
+        try { RepeatMode.valueOf(it[REPEAT_MODE] ?: "NONE") } catch (e: Exception) { RepeatMode.NONE }
     }
-
-    suspend fun setRepeatMode(mode: RepeatMode) {
-        ds.edit { it[REPEAT_MODE] = mode.name }
-    }
+    suspend fun setRepeatMode(mode: RepeatMode) { ds.edit { it[REPEAT_MODE] = mode.name } }
 
     val shuffleEnabled: Flow<Boolean> = ds.data.map { it[SHUFFLE_ENABLED] ?: false }
-
-    suspend fun setShuffleEnabled(enabled: Boolean) {
-        ds.edit { it[SHUFFLE_ENABLED] = enabled }
-    }
-
-    val crossfadeDurationMs: Flow<Int> = ds.data.map { it[CROSSFADE_DURATION_MS] ?: 0 }
-
-    suspend fun setCrossfadeDuration(ms: Int) {
-        ds.edit { it[CROSSFADE_DURATION_MS] = ms }
-    }
-
-    val skipSilence: Flow<Boolean> = ds.data.map { it[SKIP_SILENCE] ?: false }
-
-    suspend fun setSkipSilence(enabled: Boolean) {
-        ds.edit { it[SKIP_SILENCE] = enabled }
-    }
-
-    val replayGainMode: Flow<String> = ds.data.map { it[REPLAY_GAIN_MODE] ?: "TRACK" }
-
-    suspend fun setReplayGainMode(mode: String) {
-        ds.edit { it[REPLAY_GAIN_MODE] = mode }
-    }
-
-    val replayGainPreampDb: Flow<Float> = ds.data.map { it[REPLAY_GAIN_PREAMP_DB] ?: 0f }
-
-    suspend fun setReplayGainPreamp(db: Float) {
-        ds.edit { it[REPLAY_GAIN_PREAMP_DB] = db }
-    }
-
-    val playbackSpeed: Flow<Float> = ds.data.map { it[PLAYBACK_SPEED] ?: 1.0f }
-
-    suspend fun setPlaybackSpeed(speed: Float) {
-        ds.edit { it[PLAYBACK_SPEED] = speed }
-    }
-
-    val playbackPitch: Flow<Float> = ds.data.map { it[PLAYBACK_PITCH] ?: 1.0f }
-
-    suspend fun setPlaybackPitch(pitch: Float) {
-        ds.edit { it[PLAYBACK_PITCH] = pitch }
-    }
-
-    val smartShuffleEnabled: Flow<Boolean> = ds.data.map { it[SMART_SHUFFLE_ENABLED] ?: false }
-
-    suspend fun setSmartShuffleEnabled(enabled: Boolean) {
-        ds.edit { it[SMART_SHUFFLE_ENABLED] = enabled }
-    }
-
-    val resumeOnHeadphones: Flow<Boolean> = ds.data.map { it[RESUME_ON_HEADPHONES] ?: true }
-
-    suspend fun setResumeOnHeadphones(enabled: Boolean) {
-        ds.edit { it[RESUME_ON_HEADPHONES] = enabled }
-    }
-
-    val pauseOnHeadphonesOut: Flow<Boolean> = ds.data.map { it[PAUSE_ON_HEADPHONES_OUT] ?: true }
-
-    suspend fun setPauseOnHeadphonesOut(enabled: Boolean) {
-        ds.edit { it[PAUSE_ON_HEADPHONES_OUT] = enabled }
-    }
-
-    val duckAudioOnFocusLoss: Flow<Boolean> = ds.data.map { it[DUCK_AUDIO_ON_FOCUS_LOSS] ?: true }
-
-    suspend fun setDuckAudioOnFocusLoss(enabled: Boolean) {
-        ds.edit { it[DUCK_AUDIO_ON_FOCUS_LOSS] = enabled }
-    }
-
-    val volumeNormalization: Flow<Boolean> = ds.data.map { it[VOLUME_NORMALIZATION] ?: false }
-
-    suspend fun setVolumeNormalization(enabled: Boolean) {
-        ds.edit { it[VOLUME_NORMALIZATION] = enabled }
-    }
+    suspend fun setShuffleEnabled(enabled: Boolean) { ds.edit { it[SHUFFLE_ENABLED] = enabled } }
 
     val gaplessEnabled: Flow<Boolean> = ds.data.map { it[GAPLESS_ENABLED] ?: true }
+    suspend fun setGaplessEnabled(enabled: Boolean) { ds.edit { it[GAPLESS_ENABLED] = enabled } }
 
-    suspend fun setGaplessEnabled(enabled: Boolean) {
-        ds.edit { it[GAPLESS_ENABLED] = enabled }
-    }
+    val crossfadeDurationMs: Flow<Int> = ds.data.map { it[CROSSFADE_DURATION_MS] ?: 0 }
+    suspend fun setCrossfadeDuration(ms: Int) { ds.edit { it[CROSSFADE_DURATION_MS] = ms } }
 
-    // ─── Library ─────────────────────────────────────────────────────────────
+    val skipSilence: Flow<Boolean> = ds.data.map { it[SKIP_SILENCE] ?: false }
+    suspend fun setSkipSilence(enabled: Boolean) { ds.edit { it[SKIP_SILENCE] = enabled } }
 
-    val minTrackDurationMs: Flow<Long> = ds.data.map { it[MIN_TRACK_DURATION_MS] ?: 0L }
+    val replayGainMode: Flow<String> = ds.data.map { it[REPLAY_GAIN_MODE] ?: "TRACK" }
+    suspend fun setReplayGainMode(mode: String) { ds.edit { it[REPLAY_GAIN_MODE] = mode } }
 
-    suspend fun setMinTrackDuration(ms: Long) {
-        ds.edit { it[MIN_TRACK_DURATION_MS] = ms }
-    }
+    val replayGainPreampDb: Flow<Float> = ds.data.map { it[REPLAY_GAIN_PREAMP_DB] ?: 0f }
+    suspend fun setReplayGainPreamp(db: Float) { ds.edit { it[REPLAY_GAIN_PREAMP_DB] = db } }
+
+    val playbackSpeed: Flow<Float> = ds.data.map { it[PLAYBACK_SPEED] ?: 1.0f }
+    suspend fun setPlaybackSpeed(speed: Float) { ds.edit { it[PLAYBACK_SPEED] = speed } }
+
+    val playbackPitch: Flow<Float> = ds.data.map { it[PLAYBACK_PITCH] ?: 1.0f }
+    suspend fun setPlaybackPitch(pitch: Float) { ds.edit { it[PLAYBACK_PITCH] = pitch } }
+
+    val resumeOnHeadphones: Flow<Boolean> = ds.data.map { it[RESUME_ON_HEADPHONES] ?: true }
+    suspend fun setResumeOnHeadphones(enabled: Boolean) { ds.edit { it[RESUME_ON_HEADPHONES] = enabled } }
+
+    val pauseOnHeadphonesOut: Flow<Boolean> = ds.data.map { it[PAUSE_ON_HEADPHONES_OUT] ?: true }
+    suspend fun setPauseOnHeadphonesOut(enabled: Boolean) { ds.edit { it[PAUSE_ON_HEADPHONES_OUT] = enabled } }
+
+    val duckAudioOnFocusLoss: Flow<Boolean> = ds.data.map { it[DUCK_AUDIO_ON_FOCUS_LOSS] ?: true }
+    suspend fun setDuckAudioOnFocusLoss(enabled: Boolean) { ds.edit { it[DUCK_AUDIO_ON_FOCUS_LOSS] = enabled } }
+
+    val smartShuffleEnabled: Flow<Boolean> = ds.data.map { it[SMART_SHUFFLE_ENABLED] ?: false }
+    suspend fun setSmartShuffleEnabled(enabled: Boolean) { ds.edit { it[SMART_SHUFFLE_ENABLED] = enabled } }
+
+    val volumeNormalization: Flow<Boolean> = ds.data.map { it[VOLUME_NORMALIZATION] ?: false }
+    suspend fun setVolumeNormalization(enabled: Boolean) { ds.edit { it[VOLUME_NORMALIZATION] = enabled } }
+
+    val minTrackDurationMs: Flow<Long> = ds.data.map { it[MIN_TRACK_DURATION_MS] ?: 30000L }
+    suspend fun setMinTrackDuration(ms: Long) { ds.edit { it[MIN_TRACK_DURATION_MS] = ms } }
 
     val artistDelimiter: Flow<String> = ds.data.map { it[ARTIST_DELIMITER] ?: ",;/&" }
-
-    suspend fun setArtistDelimiter(delimiter: String) {
-        ds.edit { it[ARTIST_DELIMITER] = delimiter }
-    }
+    suspend fun setArtistDelimiter(delim: String) { ds.edit { it[ARTIST_DELIMITER] = delim } }
 
     val excludedFolders: Flow<Set<String>> = ds.data.map { it[EXCLUDED_FOLDERS] ?: emptySet() }
-
-    suspend fun setExcludedFolders(folders: Set<String>) {
-        ds.edit { it[EXCLUDED_FOLDERS] = folders }
-    }
+    suspend fun setExcludedFolders(folders: Set<String>) { ds.edit { it[EXCLUDED_FOLDERS] = folders } }
 
     val showArtworkInList: Flow<Boolean> = ds.data.map { it[SHOW_ARTWORK_IN_LIST] ?: true }
-
-    suspend fun setShowArtworkInList(enabled: Boolean) {
-        ds.edit { it[SHOW_ARTWORK_IN_LIST] = enabled }
-    }
-
-    val fetchArtistImages: Flow<Boolean> = ds.data.map { it[FETCH_ARTIST_IMAGES] ?: true }
-
-    suspend fun setFetchArtistImages(enabled: Boolean) {
-        ds.edit { it[FETCH_ARTIST_IMAGES] = enabled }
-    }
+    suspend fun setShowArtworkInList(enabled: Boolean) { ds.edit { it[SHOW_ARTWORK_IN_LIST] = enabled } }
 
     val groupByAlbumArtist: Flow<Boolean> = ds.data.map { it[GROUP_BY_ALBUM_ARTIST] ?: true }
-
-    suspend fun setGroupByAlbumArtist(enabled: Boolean) {
-        ds.edit { it[GROUP_BY_ALBUM_ARTIST] = enabled }
-    }
+    suspend fun setGroupByAlbumArtist(enabled: Boolean) { ds.edit { it[GROUP_BY_ALBUM_ARTIST] = enabled } }
 
     val showFilenameAsTitle: Flow<Boolean> = ds.data.map { it[SHOW_FILENAME_AS_TITLE] ?: false }
-
-    suspend fun setShowFilenameAsTitle(enabled: Boolean) {
-        ds.edit { it[SHOW_FILENAME_AS_TITLE] = enabled }
-    }
+    suspend fun setShowFilenameAsTitle(enabled: Boolean) { ds.edit { it[SHOW_FILENAME_AS_TITLE] = enabled } }
 
     val ignoreArticles: Flow<Boolean> = ds.data.map { it[IGNORE_ARTICLES] ?: true }
-
-    suspend fun setIgnoreArticles(enabled: Boolean) {
-        ds.edit { it[IGNORE_ARTICLES] = enabled }
-    }
+    suspend fun setIgnoreArticles(enabled: Boolean) { ds.edit { it[IGNORE_ARTICLES] = enabled } }
 
     val autoScanIntervalHours: Flow<Int> = ds.data.map { it[AUTO_SCAN_INTERVAL_HOURS] ?: 0 }
+    suspend fun setAutoScanIntervalHours(hours: Int) { ds.edit { it[AUTO_SCAN_INTERVAL_HOURS] = hours } }
 
-    suspend fun setAutoScanIntervalHours(hours: Int) {
-        ds.edit { it[AUTO_SCAN_INTERVAL_HOURS] = hours }
-    }
-
-    // ─── UI ──────────────────────────────────────────────────────────────────
+    val fetchArtistImages: Flow<Boolean> = ds.data.map { it[FETCH_ARTIST_IMAGES] ?: true }
+    suspend fun setFetchArtistImages(enabled: Boolean) { ds.edit { it[FETCH_ARTIST_IMAGES] = enabled } }
 
     val dynamicColorEnabled: Flow<Boolean> = ds.data.map { it[DYNAMIC_COLOR_ENABLED] ?: true }
-
-    suspend fun setDynamicColorEnabled(enabled: Boolean) {
-        ds.edit { it[DYNAMIC_COLOR_ENABLED] = enabled }
-    }
+    suspend fun setDynamicColorEnabled(enabled: Boolean) { ds.edit { it[DYNAMIC_COLOR_ENABLED] = enabled } }
 
     val presetColor: Flow<Int?> = ds.data.map { it[PRESET_COLOR] }
-
-    suspend fun setPresetColor(color: Int) {
-        ds.edit { it[PRESET_COLOR] = color }
-    }
+    suspend fun setPresetColor(color: Int) { ds.edit { it[PRESET_COLOR] = color } }
 
     val darkTheme: Flow<String> = ds.data.map { it[DARK_THEME] ?: "SYSTEM" }
-
-    suspend fun setDarkTheme(mode: String) {
-        ds.edit { it[DARK_THEME] = mode }
-    }
-
-    val showWaveformSeekbar: Flow<Boolean> = ds.data.map { it[SHOW_WAVEFORM_SEEKBAR] ?: true }
-
-    suspend fun setShowWaveformSeekbar(enabled: Boolean) {
-        ds.edit { it[SHOW_WAVEFORM_SEEKBAR] = enabled }
-    }
+    suspend fun setDarkTheme(theme: String) { ds.edit { it[DARK_THEME] = theme } }
 
     val cornerRadius: Flow<Int> = ds.data.map { it[CORNER_RADIUS] ?: 28 }
+    suspend fun setCornerRadius(radius: Int) { ds.edit { it[CORNER_RADIUS] = radius } }
 
-    suspend fun setCornerRadius(radius: Int) {
-        ds.edit { it[CORNER_RADIUS] = radius }
-    }
+    val seekbarStyle: Flow<String> = ds.data.map { it[SEEKBAR_STYLE] ?: "WAVEFORM" }
+    suspend fun setSeekbarStyle(style: String) { ds.edit { it[SEEKBAR_STYLE] = style } }
 
     val blurArtworkBackground: Flow<Boolean> = ds.data.map { it[BLUR_ARTWORK_BACKGROUND] ?: true }
-
-    suspend fun setBlurArtworkBackground(enabled: Boolean) {
-        ds.edit { it[BLUR_ARTWORK_BACKGROUND] = enabled }
-    }
+    suspend fun setBlurArtworkBackground(enabled: Boolean) { ds.edit { it[BLUR_ARTWORK_BACKGROUND] = enabled } }
 
     val blurStrength: Flow<Float> = ds.data.map { it[BLUR_STRENGTH] ?: 0.3f }
-
-    suspend fun setBlurStrength(strength: Float) {
-        ds.edit { it[BLUR_STRENGTH] = strength }
-    }
+    suspend fun setBlurStrength(strength: Float) { ds.edit { it[BLUR_STRENGTH] = strength } }
 
     val artworkAnimation: Flow<Boolean> = ds.data.map { it[ARTWORK_ANIMATION] ?: true }
-
-    suspend fun setArtworkAnimation(enabled: Boolean) {
-        ds.edit { it[ARTWORK_ANIMATION] = enabled }
-    }
+    suspend fun setArtworkAnimation(enabled: Boolean) { ds.edit { it[ARTWORK_ANIMATION] = enabled } }
 
     val hapticFeedback: Flow<Boolean> = ds.data.map { it[HAPTIC_FEEDBACK] ?: true }
-
-    suspend fun setHapticFeedback(enabled: Boolean) {
-        ds.edit { it[HAPTIC_FEEDBACK] = enabled }
-    }
+    suspend fun setHapticFeedback(enabled: Boolean) { ds.edit { it[HAPTIC_FEEDBACK] = enabled } }
 
     val showBitrateInfo: Flow<Boolean> = ds.data.map { it[SHOW_BITRATE_INFO] ?: false }
-
-    suspend fun setShowBitrateInfo(enabled: Boolean) {
-        ds.edit { it[SHOW_BITRATE_INFO] = enabled }
-    }
+    suspend fun setShowBitrateInfo(enabled: Boolean) { ds.edit { it[SHOW_BITRATE_INFO] = enabled } }
 
     val albumGridColumns: Flow<Int> = ds.data.map { it[ALBUM_GRID_COLUMNS] ?: 2 }
-
-    suspend fun setAlbumGridColumns(columns: Int) {
-        ds.edit { it[ALBUM_GRID_COLUMNS] = columns }
-    }
+    suspend fun setAlbumGridColumns(cols: Int) { ds.edit { it[ALBUM_GRID_COLUMNS] = cols } }
 
     val miniPlayerStyle: Flow<String> = ds.data.map { it[MINI_PLAYER_STYLE] ?: "CARD" }
-
-    suspend fun setMiniPlayerStyle(style: String) {
-        ds.edit { it[MINI_PLAYER_STYLE] = style }
-    }
+    suspend fun setMiniPlayerStyle(style: String) { ds.edit { it[MINI_PLAYER_STYLE] = style } }
 
     val playerLayout: Flow<String> = ds.data.map { it[PLAYER_LAYOUT] ?: "STANDARD" }
-
-    suspend fun setPlayerLayout(layout: String) {
-        ds.edit { it[PLAYER_LAYOUT] = layout }
-    }
+    suspend fun setPlayerLayout(layout: String) { ds.edit { it[PLAYER_LAYOUT] = layout } }
 
     val showLyricsButton: Flow<Boolean> = ds.data.map { it[SHOW_LYRICS_BUTTON] ?: true }
-
-    suspend fun setShowLyricsButton(enabled: Boolean) {
-        ds.edit { it[SHOW_LYRICS_BUTTON] = enabled }
-    }
+    suspend fun setShowLyricsButton(enabled: Boolean) { ds.edit { it[SHOW_LYRICS_BUTTON] = enabled } }
 
     val lyricsFontScale: Flow<Float> = ds.data.map { it[LYRICS_FONT_SCALE] ?: 1.0f }
-
-    suspend fun setLyricsFontScale(scale: Float) {
-        ds.edit { it[LYRICS_FONT_SCALE] = scale }
-    }
-
-    // ─── Notification ─────────────────────────────────────────────────────────
+    suspend fun setLyricsFontScale(scale: Float) { ds.edit { it[LYRICS_FONT_SCALE] = scale } }
 
     val lockscreenArtwork: Flow<Boolean> = ds.data.map { it[LOCKSCREEN_ARTWORK] ?: true }
-
-    suspend fun setLockscreenArtwork(enabled: Boolean) {
-        ds.edit { it[LOCKSCREEN_ARTWORK] = enabled }
-    }
+    suspend fun setLockscreenArtwork(enabled: Boolean) { ds.edit { it[LOCKSCREEN_ARTWORK] = enabled } }
 
     val showSkipButtons: Flow<Boolean> = ds.data.map { it[SHOW_SKIP_BUTTONS] ?: true }
-
-    suspend fun setShowSkipButtons(enabled: Boolean) {
-        ds.edit { it[SHOW_SKIP_BUTTONS] = enabled }
-    }
-
-    // ─── History ─────────────────────────────────────────────────────────────
+    suspend fun setShowSkipButtons(enabled: Boolean) { ds.edit { it[SHOW_SKIP_BUTTONS] = enabled } }
 
     val historyEnabled: Flow<Boolean> = ds.data.map { it[HISTORY_ENABLED] ?: true }
-
-    suspend fun setHistoryEnabled(enabled: Boolean) {
-        ds.edit { it[HISTORY_ENABLED] = enabled }
-    }
+    suspend fun setHistoryEnabled(enabled: Boolean) { ds.edit { it[HISTORY_ENABLED] = enabled } }
 
     val minListenSeconds: Flow<Int> = ds.data.map { it[MIN_LISTEN_SECONDS] ?: 30 }
     val minListenPercentage: Flow<Float> = ds.data.map { it[MIN_LISTEN_PERCENTAGE] ?: 0.5f }
-
-    suspend fun setListenThresholds(minSeconds: Int, minPercent: Float) {
+    suspend fun setListenThresholds(seconds: Int, pct: Float) {
         ds.edit {
-            it[MIN_LISTEN_SECONDS] = minSeconds
-            it[MIN_LISTEN_PERCENTAGE] = minPercent
+            it[MIN_LISTEN_SECONDS] = seconds
+            it[MIN_LISTEN_PERCENTAGE] = pct
         }
     }
 
     val maxHistoryItems: Flow<Int> = ds.data.map { it[MAX_HISTORY_ITEMS] ?: 1000 }
-
-    suspend fun setMaxHistoryItems(max: Int) {
-        ds.edit { it[MAX_HISTORY_ITEMS] = max }
-    }
-
-    // ─── Last.fm ─────────────────────────────────────────────────────────────
+    suspend fun setMaxHistoryItems(max: Int) { ds.edit { it[MAX_HISTORY_ITEMS] = max } }
 
     val lastFmEnabled: Flow<Boolean> = ds.data.map { it[LAST_FM_ENABLED] ?: false }
-
-    suspend fun setLastFmEnabled(enabled: Boolean) {
-        ds.edit { it[LAST_FM_ENABLED] = enabled }
-    }
+    suspend fun setLastFmEnabled(enabled: Boolean) { ds.edit { it[LAST_FM_ENABLED] = enabled } }
 
     val lastFmNowPlaying: Flow<Boolean> = ds.data.map { it[LAST_FM_NOW_PLAYING] ?: true }
-
-    suspend fun setLastFmNowPlaying(enabled: Boolean) {
-        ds.edit { it[LAST_FM_NOW_PLAYING] = enabled }
-    }
+    suspend fun setLastFmNowPlaying(enabled: Boolean) { ds.edit { it[LAST_FM_NOW_PLAYING] = enabled } }
 
     val lastFmScrobblePercent: Flow<Float> = ds.data.map { it[LAST_FM_SCROBBLE_PERCENT] ?: 0.5f }
-
-    suspend fun setLastFmScrobblePercent(percent: Float) {
-        ds.edit { it[LAST_FM_SCROBBLE_PERCENT] = percent }
-    }
+    suspend fun setLastFmScrobblePercent(percent: Float) { ds.edit { it[LAST_FM_SCROBBLE_PERCENT] = percent } }
 
     val lastFmScrobbleMinSecs: Flow<Int> = ds.data.map { it[LAST_FM_SCROBBLE_MIN_SECS] ?: 30 }
-
-    suspend fun setLastFmScrobbleMinSecs(seconds: Int) {
-        ds.edit { it[LAST_FM_SCROBBLE_MIN_SECS] = seconds }
-    }
+    suspend fun setLastFmScrobbleMinSecs(seconds: Int) { ds.edit { it[LAST_FM_SCROBBLE_MIN_SECS] = seconds } }
 
     val lastFmOnlyOnWifi: Flow<Boolean> = ds.data.map { it[LAST_FM_ONLY_ON_WIFI] ?: false }
-
-    suspend fun setLastFmOnlyOnWifi(enabled: Boolean) {
-        ds.edit { it[LAST_FM_ONLY_ON_WIFI] = enabled }
-    }
+    suspend fun setLastFmOnlyOnWifi(enabled: Boolean) { ds.edit { it[LAST_FM_ONLY_ON_WIFI] = enabled } }
 
     val lastFmScrobbleOffline: Flow<Boolean> = ds.data.map { it[LAST_FM_SCROBBLE_OFFLINE] ?: true }
-
-    suspend fun setLastFmScrobbleOffline(enabled: Boolean) {
-        ds.edit { it[LAST_FM_SCROBBLE_OFFLINE] = enabled }
-    }
+    suspend fun setLastFmScrobbleOffline(enabled: Boolean) { ds.edit { it[LAST_FM_SCROBBLE_OFFLINE] = enabled } }
 
     val lastFmUsername: Flow<String?> = ds.data.map { it[LAST_FM_USERNAME] }
     val lastFmSessionKey: Flow<String?> = ds.data.map { it[LAST_FM_SESSION_KEY] }
-    val lastFmApiKey: Flow<String?> = ds.data.map { it[LAST_FM_API_KEY] }
-    val lastFmApiSecret: Flow<String?> = ds.data.map { it[LAST_FM_API_SECRET] }
-
-    suspend fun setLastFmSession(username: String, sessionKey: String) {
+    suspend fun setLastFmCredentials(username: String, sessionKey: String) {
         ds.edit {
             it[LAST_FM_USERNAME] = username
             it[LAST_FM_SESSION_KEY] = sessionKey
         }
     }
-
-    suspend fun clearLastFmSession() {
+    suspend fun clearLastFmCredentials() {
         ds.edit {
             it.remove(LAST_FM_USERNAME)
             it.remove(LAST_FM_SESSION_KEY)
+            it[LAST_FM_ENABLED] = false
         }
     }
 }

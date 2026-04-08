@@ -38,8 +38,8 @@ android {
         applicationId = "dev.yuwixx.resonance"
         minSdk = 26
         targetSdk = 35
-        versionCode = 2
-        versionName = "1.1"
+        versionCode = 3
+        versionName = "1.1.1"
     }
 
     buildTypes {
@@ -146,4 +146,6 @@ dependencies {
     // ── Workers ──────────────────────────────────────────────────────────────
     implementation("androidx.work:work-runtime-ktx:2.10.0")
     ksp("androidx.hilt:hilt-compiler:1.2.0")
+    // ── Tag Editing ──────────────────────────────────────────────────────────
+    implementation("net.jthink:jaudiotagger:3.0.1")
 }

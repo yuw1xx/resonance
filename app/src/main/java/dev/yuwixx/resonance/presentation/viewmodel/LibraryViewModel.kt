@@ -112,6 +112,13 @@ class LibraryViewModel @Inject constructor(
     fun exportPlaylistAsM3U(playlist: dev.yuwixx.resonance.data.model.Playlist): String =
         playlistRepository.exportPlaylistAsM3U(playlist)
 
+    fun updateSongTags(songId: Long, title: String, artist: String, album: String, genre: String, year: Int, trackNumber: Int) {
+        viewModelScope.launch {
+            musicRepository.updateSongTags(songId, title, artist, album, genre, year, trackNumber)
+            syncLibrary(force = true) // Refresh lists
+        }
+    }
+
     // ─── Loading state ────────────────────────────────────────────────────────
 
     private val _isSyncing = MutableStateFlow(false)

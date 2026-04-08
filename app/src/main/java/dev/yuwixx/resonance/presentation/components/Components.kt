@@ -33,10 +33,156 @@ import kotlin.math.*
 import kotlin.math.pow
 import kotlin.random.Random
 
+// ─── Squiggly Seekbar ────────────────────────────────────────────────────────
+
+@Composable
+fun SquigglySeekbar(
+    positionProvider: () -> Long,
+    durationMs: Long,
+    onSeek: (Long) -> Unit,
+    modifier: Modifier = Modifier,
+    isPlaying: Boolean = false,
+    playedColor: Color = MaterialTheme.colorScheme.primary,
+    remainingColor: Color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.18f),
+    strokeWidth: Dp = 4.dp,
+    amplitude: Dp = 8.dp, // Height of the wave
+    frequency: Float = 0.12f // Tighter wave
+) {
+    val haptics = LocalHapticFeedback.current
+    val positionMs = positionProvider()
+
+    // Smooth progress interpolation
+    val targetProgress = if (durationMs > 0) (positionMs.toFloat() / durationMs).coerceIn(0f, 1f) else 0f
+    val animatedProgress by animateFloatAsState(
+        targetValue = targetProgress,
+        animationSpec = tween(durationMillis = 120, easing = FastOutSlowInEasing),
+        label = "squiggly_progress",
+    )
+
+    // Continuously animate the phase of the sine wave so it "travels" forward while playing
+    val infiniteTransition = rememberInfiniteTransition(label = "wave_phase")
+    val phaseAnim by infiniteTransition.animateFloat(
+        initialValue = 0f,
+        targetValue = 2f * PI.toFloat(),
+        animationSpec = infiniteRepeatable(
+            animation = tween(1200, easing = LinearEasing),
+            repeatMode = RepeatMode.Restart,
+        ),
+        label = "phase_anim"
+    )
+
+    // Remember the last phase to keep it paused at exactly where it stopped
+    var staticPhase by remember { mutableFloatStateOf(0f) }
+    if (isPlaying) {
+        staticPhase = phaseAnim
+    }
+
+    // Drag state for immediate visual feedback while scrubbing
+    var isDragging by remember { mutableStateOf(false) }
+    var dragProgress by remember { mutableFloatStateOf(0f) }
+    val displayProgress = if (isDragging) dragProgress else animatedProgress
+
+    Canvas(
+        modifier = modifier
+            .fillMaxWidth()
+            .height(64.dp)
+            .pointerInput(durationMs) {
+                awaitPointerEventScope {
+                    while (true) {
+                        val event = awaitPointerEvent()
+                        val change = event.changes.firstOrNull() ?: continue
+                        val fraction = (change.position.x / size.width).coerceIn(0f, 1f)
+                        dragProgress = fraction
+                        if (change.pressed) {
+                            isDragging = true
+                            onSeek((fraction * durationMs).toLong())
+                            haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                        } else {
+                            isDragging = false
+                        }
+                    }
+                }
+            },
+    ) {
+        val width = size.width
+        val cy = size.height / 2f
+        val currentX = displayProgress * width
+        val ampPx = amplitude.toPx()
+        val strokePx = strokeWidth.toPx()
+
+        // 1. Draw the played part (The Squiggly Sine Wave)
+        if (currentX > 0f) {
+            val playedPath = Path()
+            playedPath.moveTo(0f, cy + sin(staticPhase) * ampPx)
+
+            // Step through X pixels to draw the wave
+            val step = 4f // Lower step = smoother wave but heavier to draw
+            var x = step
+            while (x < currentX) {
+                // The wave travels backwards visually by subtracting the phase
+                val y = cy + sin(x * frequency - staticPhase) * ampPx
+                playedPath.lineTo(x, y)
+                x += step
+            }
+            // Connect to exact split point
+            playedPath.lineTo(currentX, cy + sin(currentX * frequency - staticPhase) * ampPx)
+
+            drawPath(
+                path = playedPath,
+                color = playedColor,
+                style = androidx.compose.ui.graphics.drawscope.Stroke(
+                    width = strokePx,
+                    cap = StrokeCap.Round,
+                    join = StrokeJoin.Round
+                )
+            )
+
+            // Draw a small thumb circle at the tip of the played wave
+            drawCircle(
+                color = playedColor,
+                radius = strokePx * 1.5f,
+                center = Offset(currentX, cy + sin(currentX * frequency - staticPhase) * ampPx)
+            )
+        }
+
+        // 2. Draw the remaining part (Straight Line)
+        if (currentX < width) {
+            val startY = if (currentX == 0f) cy else cy + sin(currentX * frequency - staticPhase) * ampPx
+            val unplayedPath = Path()
+            unplayedPath.moveTo(currentX, startY)
+
+            // Ease out the wave back to the center line over a short distance
+            val easeOutDistance = 40f
+            if (width - currentX > easeOutDistance && currentX > 0f) {
+                unplayedPath.quadraticBezierTo(
+                    currentX + easeOutDistance / 2f, cy,
+                    currentX + easeOutDistance, cy
+                )
+                unplayedPath.lineTo(width, cy)
+            } else {
+                unplayedPath.lineTo(width, cy)
+            }
+
+            drawPath(
+                path = unplayedPath,
+                color = remainingColor,
+                style = androidx.compose.ui.graphics.drawscope.Stroke(
+                    width = strokePx,
+                    cap = StrokeCap.Round,
+                    join = StrokeJoin.Round
+                )
+            )
+        }
+    }
+}
+
+
+// ─── Waveform Seekbar ────────────────────────────────────────────────────────
+
 @Composable
 fun WaveformSeekbar(
     waveformData: WaveformData?,
-    positionMs: Long,
+    positionProvider: () -> Long,
     durationMs: Long,
     onSeek: (Long) -> Unit,
     modifier: Modifier = Modifier,
@@ -48,6 +194,7 @@ fun WaveformSeekbar(
     minHeightFraction: Float = 0.12f,
 ) {
     val haptics = LocalHapticFeedback.current
+    val positionMs = positionProvider()
 
     // Smooth progress interpolation
     val targetProgress = if (durationMs > 0) (positionMs.toFloat() / durationMs).coerceIn(0f, 1f) else 0f
@@ -116,9 +263,19 @@ fun WaveformSeekbar(
         val gap   = barSpacingDp.toPx()
         val step  = barW + gap
         val count = (size.width / step).toInt().coerceAtLeast(1)
-        val cx    = size.width / 2f
         val cy    = size.height / 2f
         val splitX = displayProgress * size.width
+
+        // SMOOTH FILL EFFECT
+        val safeProgress = displayProgress.coerceIn(0.001f, 0.999f)
+        val smoothBrush = Brush.horizontalGradient(
+            0f to playedColor,
+            safeProgress to playedColor,
+            safeProgress to remainingColor,
+            1f to remainingColor,
+            startX = 0f,
+            endX = size.width
+        )
 
         for (i in 0 until count) {
             val barCX = i * step + barW / 2f
@@ -140,10 +297,9 @@ fun WaveformSeekbar(
 
             val top    = cy - barH / 2f
             val bottom = cy + barH / 2f
-            val isPlayed = barCX <= splitX
 
             drawLine(
-                color = if (isPlayed) playedColor else remainingColor,
+                brush = smoothBrush,
                 start = Offset(barCX, top),
                 end   = Offset(barCX, bottom),
                 strokeWidth = barW,
@@ -364,12 +520,12 @@ fun MiniPlayer(
 ) {
     val currentSong by playerViewModel.currentSong.collectAsState()
     val isPlaying by playerViewModel.isPlaying.collectAsState()
-    val positionMs by playerViewModel.positionMs.collectAsState()
     val durationMs by playerViewModel.durationMs.collectAsState()
+
+    val positionProvider = remember { { playerViewModel.positionMs.value } }
 
     val song = currentSong ?: return
 
-    // ─── Apply the user's styling preference ──────────────────────────────
     val (outerPadding, cornerRadius, elevation) = when (style) {
         "COMPACT"  -> Triple(0.dp, 0.dp, 0.dp)
         "FLOATING" -> Triple(16.dp, 28.dp, 8.dp)
@@ -387,10 +543,10 @@ fun MiniPlayer(
     ) {
         Box(modifier = Modifier.fillMaxWidth()) {
 
-            // Progress bar anchored to the bottom
-            val progress = if (durationMs > 0) (positionMs.toFloat() / durationMs.toFloat()).coerceIn(0f, 1f) else 0f
             LinearProgressIndicator(
-                progress = { progress },
+                progress = {
+                    if (durationMs > 0) (positionProvider().toFloat() / durationMs.toFloat()).coerceIn(0f, 1f) else 0f
+                },
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(2.dp)

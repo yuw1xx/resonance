@@ -10,7 +10,6 @@ import dev.yuwixx.resonance.data.model.Song
 import dev.yuwixx.resonance.data.repository.MusicRepository
 import dev.yuwixx.resonance.data.service.NearbyShareManager
 import dev.yuwixx.resonance.data.service.ShareTransferManager
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import javax.inject.Inject
@@ -46,11 +45,7 @@ class ShareViewModel @Inject constructor(
     val transferState = transferManager.state
 
     fun prepareTransfer(song: Song) {
-        viewModelScope.launch {
-            nearbyManager.stopScanning()
-            delay(500)
-            transferManager.prepareTransfer(song)
-        }
+        transferManager.prepareTransfer(song)
     }
     fun cancelTransfer()            = transferManager.cancel()
     fun dismissNoWifi()             = transferManager.dismissNoWifi()
