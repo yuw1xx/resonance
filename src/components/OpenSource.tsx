@@ -17,7 +17,7 @@ export default function OpenSource() {
               initial={{ opacity: 0, x: -30 }}
               whileInView={{ opacity: 1, x: 0 }}
               viewport={{ once: true }}
-              transition={{ duration: 0.6, ease: [0.25, 0.46, 0.45, 0.94] }}
+              transition={{ duration: 0.6, ease: 'easeOut' }}
             >
               <h2 className="text-3xl md:text-4xl font-bold tracking-tight mb-5 leading-tight">
                 Free &amp; open source,{' '}
@@ -55,7 +55,7 @@ export default function OpenSource() {
               initial={{ opacity: 0, x: 30 }}
               whileInView={{ opacity: 1, x: 0 }}
               viewport={{ once: true }}
-              transition={{ duration: 0.6, ease: [0.25, 0.46, 0.45, 0.94] }}
+              transition={{ duration: 0.6, ease: 'easeOut' }}
               className="rounded-2xl border border-white/[0.07] bg-[#06060B] overflow-hidden shadow-[0_20px_60px_rgba(0,0,0,0.5)]"
             >
               {/* Terminal chrome */}

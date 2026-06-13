@@ -19,7 +19,7 @@ function PhoneFrame({ src, label, index }: { src: string; label: string; index: 
       initial={{ opacity: 0, y: 40 }}
       whileInView={{ opacity: 1, y: 0 }}
       viewport={{ once: true, margin: '-60px' }}
-      transition={{ duration: 0.55, delay: index * 0.06, ease: [0.25, 0.46, 0.45, 0.94] }}
+      transition={{ duration: 0.55, delay: index * 0.06, ease: 'easeOut' }}
       className="flex flex-col items-center gap-3"
     >
       <motion.div

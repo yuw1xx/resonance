@@ -8,6 +8,8 @@
   }
 
   body {
+    background-color: #08080F;
+    color: #EDE9F6;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
   }
