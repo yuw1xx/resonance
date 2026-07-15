@@ -5,6 +5,8 @@ const LINKS = [
   { label: 'Releases', href: 'https://github.com/yuw1xx/resonance-app/releases' },
   { label: 'Report a Bug', href: 'https://github.com/yuw1xx/resonance-app/issues' },
   { label: 'MIT License', href: 'https://github.com/yuw1xx/resonance-app/blob/main/LICENSE' },
+  { label: 'Terms of Service', href: `${base}terms.html` },
+  { label: 'Privacy Policy', href: `${base}privacy.html` },
 ]
 
 export default function Footer() {

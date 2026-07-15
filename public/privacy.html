@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/png" href="/resonance/icon.png" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Privacy Policy — Resonance</title>
+    <style>
+      body {
+        background-color: #08080F;
+        color: #EDE9F6;
+        font-family: Inter, system-ui, sans-serif;
+        max-width: 720px;
+        margin: 0 auto;
+        padding: 4rem 1.5rem 6rem;
+        line-height: 1.7;
+      }
+      h1 { font-size: 1.75rem; margin-bottom: 0.5rem; }
+      h2 { font-size: 1.15rem; margin-top: 2.25rem; color: #EDE9F6; }
+      p, li { color: #B8B2C8; }
+      a { color: #8B7FE8; }
+      .updated { color: #6B6380; font-size: 0.875rem; margin-bottom: 2.5rem; }
+      .back { display: inline-block; margin-bottom: 2rem; color: #6B6380; text-decoration: none; font-size: 0.875rem; }
+      .back:hover { color: #8B7FE8; }
+    </style>
+  </head>
+  <body>
+    <a class="back" href="/resonance/">&larr; Back to Resonance</a>
+    <h1>Privacy Policy</h1>
+    <p class="updated">Last updated: July 15, 2026</p>
+
+    <p>Resonance is a local music player. It is designed to work with the music files already on your device, and by default does not collect or transmit your personal data to the developer. The one exception is the optional Resonance Share feature, described below, which can briefly relay a file through a server when sharing over the internet.</p>
+
+    <h2>Data Controller</h2>
+    <p>Resonance is developed and maintained by yuw1xx, based in the Czech Republic. For the local features of the app, there is no "processing" of personal data by the developer under the GDPR. For the internet-relay mode of Resonance Share (below), the developer acts as data controller for the data that briefly passes through the relay server.</p>
+
+    <h2>What Data the App Touches, and Why</h2>
+    <p>Resonance needs storage access on your device to find and play your local music files. It reads file and folder metadata (song titles, artists, album art, file paths) purely to build your library and play tracks. None of this is transmitted off your device by the app itself — it stays in local app storage, under your control, and is deleted when you clear app data or uninstall.</p>
+
+    <h2>Resonance Share</h2>
+    <p>Resonance Share lets you send a song from your device to another. Depending on how the two devices connect, this works in different ways:</p>
+    <ul>
+      <li><strong>Same Wi-Fi / Wi-Fi Direct:</strong> your device briefly runs a small local file server and generates a link or QR code containing your local IP address, port, a one-time access token, and the song's title/artist/file type. Your IP address is itself personal data, but it is only embedded in a link/QR code scanned locally by the recipient's device — it is not sent to the developer or any server. The file is transferred directly between the two devices over the local network or a direct Wi-Fi connection.</li>
+      <li><strong>Nearby Share:</strong> uses Google Play Services' Nearby Connections API to transfer the file directly device-to-device over Bluetooth or Wi-Fi, after you approve the transfer. The file itself is sent peer-to-peer, not through a Resonance server. Discovery and connection setup, however, run through Google Play Services, which may process device identifiers as part of that handshake under Google's own privacy policy — this is Google's infrastructure, not something Resonance controls. Not available on devices without Google Play Services.</li>
+      <li><strong>Internet relay (long-distance share):</strong> when devices aren't on the same network, the song file, its title/artist/file-type metadata, and an anonymous, randomly generated per-install device ID (not tied to any account or personal identity) are uploaded over HTTPS to a relay server so the other device can download it. By default this is <code>share.yuwixx.dev</code>, operated by the developer, and is configured to delete uploaded files after a short time (24 hours by default, maximum 72 hours); the device ID is used solely to rate-limit abuse of the relay and is never shown in the app UI. Like most web servers, the relay may keep standard connection/access logs (e.g. requesting IP address and timestamp) for security and abuse-prevention purposes. You can instead point Resonance at your own self-hosted relay in Settings — if you do, the developer has no visibility into or responsibility for that server, and this policy no longer applies to it; you (or whoever runs it) become the data controller for that instance.</li>
+    </ul>
+    <p>No account or login is required for any Resonance Share mode.</p>
+
+    <h2>Optional Third-Party Services</h2>
+    <p>If you choose to connect optional integrations such as Last.fm scrobbling, Navidrome, or Chromecast, those services will receive the data necessary to provide that functionality (e.g. track metadata sent to Last.fm, or media streamed to a Chromecast device on your network). In these cases, the relevant third party — not the Resonance developer — acts as the data controller for the data you send them, and their own privacy policy applies. This only happens if you actively opt in and configure the integration yourself.</p>
+
+    <h2>Legal Basis (GDPR)</h2>
+    <p>For EU/EEA users: for local features, Resonance does not collect or receive your personal data, so no processing by the developer takes place and no legal basis is required. Where you opt into a third-party integration, your consent (given by configuring that integration) is the basis for any resulting data transfer to that third party. For the Resonance Share internet-relay mode, the legal basis is your consent, given each time you actively choose to start a long-distance share; the anonymous device ID is processed under the developer's legitimate interest in preventing abuse of the relay service.</p>
+
+    <h2>No Tracking or Ads</h2>
+    <p>Resonance contains no analytics SDKs, ad networks, or trackers.</p>
+
+    <h2>Your Rights</h2>
+    <p>For local features, there is generally nothing to access, correct, or delete on our end. For the default Resonance Share relay server, uploaded files expire on their own (within 72 hours at most); if you'd like something removed sooner, or want a copy of the access logs pertaining to you, contact the developer by email (below). If you have connected a third-party service (Last.fm, Navidrome, a self-hosted relay, etc.), exercise your GDPR rights (access, rectification, erasure, portability, objection) directly with whoever operates that service. You may also lodge a complaint with your national data protection authority — in the Czech Republic, the <a href="https://uoou.gov.cz/en" target="_blank" rel="noopener noreferrer">Úřad pro ochranu osobních údajů (ÚOOÚ)</a>.</p>
+
+    <h2>Children's Privacy</h2>
+    <p>Resonance does not knowingly collect data from anyone, including children, since it collects no personal data at all. The app is not specifically directed at children.</p>
+
+    <h2>Open Source</h2>
+    <p>Because Resonance is open source, you can review exactly what the app does with your data in the <a href="https://github.com/yuw1xx/resonance-app" target="_blank" rel="noopener noreferrer">source code</a>.</p>
+
+    <h2>Governing Law</h2>
+    <p>This policy is governed by the laws of the Czech Republic and, where applicable, EU data protection law (GDPR).</p>
+
+    <h2>Changes</h2>
+    <p>This policy may be updated from time to time. Changes will be reflected on this page.</p>
+
+    <h2>Contact</h2>
+    <p>General questions can be raised via <a href="https://github.com/yuw1xx/resonance-app/issues" target="_blank" rel="noopener noreferrer">GitHub Issues</a>. For privacy requests, or anything involving personal data (e.g. an IP address or a relay upload) that you'd rather not post publicly, email <a href="mailto:yuwixx@4d2.org">yuwixx@4d2.org</a>.</p>
+  </body>
+</html>

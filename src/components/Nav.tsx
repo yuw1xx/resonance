@@ -35,6 +35,12 @@ export default function Nav() {
           <a href="#features" className="text-sm text-[#B0A8C8] hover:text-primary transition-colors">
             Features
           </a>
+          <a href={`${base}privacy.html`} className="text-sm text-[#B0A8C8] hover:text-primary transition-colors">
+            Privacy
+          </a>
+          <a href={`${base}terms.html`} className="text-sm text-[#B0A8C8] hover:text-primary transition-colors">
+            Terms
+          </a>
           <a
             href="https://github.com/yuw1xx/resonance-app"
             target="_blank"
